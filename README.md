@@ -1,176 +1,76 @@
-# Civ6 三层局域网房间发现助手
+# Civilization-VI-online-helper
 
-一个给 **文明 6（Civilization VI）局域网联机** 用的小工具。
+**CV6 online helper** — Tired of desyncs, high ping, and LAN lobbies that never show up? This tool fixes the weak-network headaches that plague Civilization VI multiplayer.
 
-如果你和朋友已经用蒲公英、ZeroTier、WireGuard 等工具组成了虚拟网络，双方 IP 也能互相 ping 通，但文明 6 的“局域网”列表刷不出房主，可以试试这个工具。
+- **One-click custom VPS relay nodes** — EasyTier (`--no-tun`) & lightweight UDP relay (`civ6_relay_server.py`), no port forwarding or public IP required
+- **IPv6 / P2P direct connection** — Dual-stack IPv6/IPv4 with STUN probe & bidirectional UDP hole-punching for lowest latency
+- **Zero-privilege, driver-free Civ VI LAN bridge** — No admin rights, no virtual NIC driver, no game process injection, supports mid-game disconnect & rejoin
+- **Bilingual (中文 / English) Soft-Glow Glass UI** — Light & Dark frosted glass themes with built-in interactive P2P & VPS setup guides
 
-它只做一件事：
+---
 
-> 帮文明 6 在三层虚拟网络里发现局域网房间。
+## Features / 核心特性
 
-发现房间之后，真正进入房间、加载玩家、开始游戏，仍然依赖你的虚拟网络、路由和防火墙配置正常。
+1. **Mode 1 · IPv6 / P2P Direct（方式一 · IPv6 / P2P 直连）**
+   - Supports direct public IPv6, STUN public IPv4 mapping probe, and bidirectional UDP hole-punching.
+   - Share `c6p2://` invite codes to connect without any relay server.
+2. **Mode 2 · Custom VPS Relay（方式二 · 自定义 VPS 中继）**
+   - Add and persist your own custom VPS nodes:
+     - **EasyTier VPS (`11010`)**: Embedded `easytier-core --no-tun` attempts P2P hole-punching first and falls back to your VPS automatically.
+     - **Lightweight UDP Relay (`38668`)**: Run `python3 civ6_relay_server.py --port 38668` on any VPS with zero third-party dependencies.
+   - Supports mid-game disconnect and hot-rejoin into ongoing sessions.
+3. **Strict Two-Step Workflow（严格两步式联机流程）**
+   - **Step 1 · Connect & Verify**: Start local node, connect via P2P or custom VPS relay, and run the connectivity & 1150B MTU test (2+ players online required).
+   - **Step 2 · Civ VI Helper**: Host creates a Civ VI Local Network lobby and starts Host Bridge; Clients start Client Helper (with optional 62900 room probe) and refresh Civ VI → Multiplayer → Local Network.
 
-## 什么时候需要它？
+---
 
-你可能遇到的是这种情况：
+## Quick Start / 快速开始
 
-- 你们不在同一个真实局域网里；
-- 已经通过蒲公英、ZeroTier、WireGuard 等工具连成了虚拟网络；
-- 双方的虚拟网 IP 能互相 ping 通；
-- 房主已经创建了文明 6 局域网房间；
-- 客户端进入“多人游戏 → 局域网”后看不到房间。
-
-这是因为文明 6 的局域网房间发现依赖广播包，而很多三层虚拟网络不会转发局域网广播。  
-本工具会在客户端补发一次定向的房间发现包，让客户端更容易看到房主。
-
-## 下载和使用
-
-在本仓库的 Releases 页面下载：
-
-```text
-Civ6L3DiscoveryHelper.exe
-```
-
-使用步骤：
-
-1. 双方先连好蒲公英 / ZeroTier / WireGuard / 其他虚拟网络。
-2. 确认客户端能 ping 到房主的虚拟网 IP。
-3. 房主启动文明 6，创建局域网房间。
-4. 客户端启动文明 6。
-5. 客户端运行 `Civ6L3DiscoveryHelper.exe`。
-6. 在工具里填写：
-   - **本机 IP**：客户端自己的虚拟网 IP，例如 `172.16.1.101`
-   - **房主 IP**：房主的虚拟网 IP，例如 `172.16.1.102`
-7. 点击开始监听。
-8. 回到文明 6，进入或刷新“局域网”房间列表。
-
-如果日志里出现类似内容：
-
-```text
-SEND ok: 172.16.1.101:xxxxx -> 172.16.1.102:62900
-```
-
-说明工具已经向房主发送了房间发现包。正常情况下，房间应该会出现在文明 6 的局域网列表里。
-
-## 不知道用哪种虚拟网络？
-
-可以先看这个：
-
-[组网方案配置参考：蒲公英、ZeroTier、VPS + WireGuard](docs/network-options.md)
-
-简单说：
-
-- 小白优先试蒲公英：三层组网、3 用户免费，对文明 6 小队比较友好；
-- 想免费且能接受一点排错，可以试 ZeroTier；
-- 已经会配 VPS 的用户，可以用 VPS + WireGuard。
-
-## 安全提示
-
-这个 exe 是个人开源项目构建的，通常没有代码签名。Windows 可能会提示：
-
-```text
-未知发布者
-Microsoft Defender SmartScreen 已阻止启动
-```
-
-这类提示在个人开源小工具里很常见，但不代表你必须直接信任它。
-
-如果不放心，可以选择：
-
-- 先看源码；
-- 用 Python 直接运行源码；
-- 自己从源码打包 exe。
-
-本工具尽量避免高风险操作：
-
-- 不需要管理员权限；
-- 不安装驱动；
-- 不抓包；
-- 不注入文明 6 进程；
-- 不修改游戏文件；
-- 不修改系统路由表；
-- 不改网卡优先级。
-
-它主要做的是：从你填写的本机虚拟网 IP，向你填写的房主虚拟网 IP 发送文明 6 的房间发现包。
-
-## 推荐的网络环境
-
-推荐使用普通私网 IPv4 地址，例如：
-
-- `10.x.x.x`
-- `172.16.x.x` 到 `172.31.x.x`
-- `192.168.x.x`
-
-比较推荐的方案：
-
-- 蒲公英 / Oray 这类提供私网 IPv4 的三层组网工具；
-- ZeroTier，并给成员分配普通私网 IPv4；
-- WireGuard 自建小网，例如 `10.88.66.0/24`；
-- 其他能提供普通私网 IPv4、并允许 UDP 互通的虚拟网络。
-
-目前不太推荐直接使用 Tailscale 默认地址。  
-Tailscale 默认地址通常在 `100.64.0.0/10` 范围内，按目前测试，文明 6 对这类地址的处理不一定正常，可能出现能看到一些现象但进房间阶段不走预期 `62056` UDP 会话包的情况。
-
-## 常见问题
-
-### 能看到房间，但进不去？
-
-这通常已经进入后续会话阶段。请检查：
-
-- 双方是否能通过虚拟网 IP 互相 ping 通；
-- Windows 防火墙是否允许文明 6 的 UDP 通信；
-- 虚拟网络是否允许双方互通；
-- 游戏版本、DLC、模组是否一致。
-
-### 日志显示 SEND ok，但房间没出现？
-
-请检查：
-
-- 房主 IP 是否填成了房主的虚拟网 IP；
-- 本机 IP 是否填成了客户端的虚拟网 IP；
-- 房主是否已经创建局域网房间；
-- 房主侧防火墙是否允许文明 6 接收 UDP；
-- 虚拟网络是否允许访问房主的 `62900` UDP 端口。
-
-### 自动选择的本机 IP 不对？
-
-请手动填写虚拟网卡上的 IP。
-
-自动选择只能根据系统路由做尽量合理的判断。多网卡、重叠网段、VPN 优先级异常时，自动结果可能偏离预期。
-
-### 房主也要运行这个工具吗？
-
-通常不需要。
-
-本工具一般只在搜索房间的客户端运行。房主只需要正常创建文明 6 局域网房间，并保证防火墙和虚拟网络允许通信。
-
-## 源码运行
-
-不想运行 exe 的话，可以直接运行源码版：
+### Run from Source / 源码运行
 
 ```powershell
-python civ6_l3_discovery_gui.py
+# Install GUI dependency (falls back to Tkinter if pywebview is unavailable)
+pip install pywebview
+
+# Launch CV6 online helper
+python civ6_p2p_helper.py
 ```
 
-要求：
+### Build Windows Executable / 打包单文件 EXE
 
-- Windows
-- Python 3
+```powershell
+pip install pyinstaller pywebview pillow
+pyinstaller --noconfirm --clean "CV6 online helper.spec"
+```
 
-本项目只使用 Python 标准库，不需要额外安装第三方依赖。
+### Run Unit Tests / 运行单元测试
 
-## 进阶说明
+```powershell
+python -m unittest discover -s tests -v
+```
 
-如果你想了解文明 6 局域网联机原理、本工具的实现方式、为什么能减少对网卡优先级调整的依赖、以及它和 injciv6 等项目的区别，可以继续看：
+### Self-Hosted VPS Deployment / 自建 VPS 中继部署
 
-[进阶说明：原理、限制与相关项目](docs/advanced.md)
+- **EasyTier VPS (`TCP / UDP 11010`)**:
+  ```bash
+  docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010
+  ```
+- **Lightweight UDP Relay (`UDP 38668`)**:
+  ```bash
+  python3 civ6_relay_server.py --port 38668
+  ```
 
-## 致谢
+---
 
-感谢 [xaxys/injciv6](https://github.com/xaxys/injciv6) 对文明 6 局域网发现和基于 IP 联机机制的整理、实现和公开说明。
+## Documentation / 更多文档
 
-本项目没有采用注入路线，但在理解文明 6 房间发现流程时受到了相关工作的启发。
+- [详细中文说明 (README_P2P.md)](README_P2P.md)
+- [组网方案参考 (docs/network-options.md)](docs/network-options.md)
+- [进阶原理说明 (docs/advanced.md)](docs/advanced.md)
 
-## License
+## Acknowledgements & License / 致谢与协议
 
-MIT
+Built upon [Frwere/civ6-l3-discovery-helper](https://github.com/Frwere/civ6-l3-discovery-helper) and inspired by [xaxys/injciv6](https://github.com/xaxys/injciv6).
+
+Licensed under the [MIT License](LICENSE).
