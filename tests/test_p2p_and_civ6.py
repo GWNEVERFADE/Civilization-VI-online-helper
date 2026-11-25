@@ -1215,6 +1215,154 @@ class TestGlassGuiController(unittest.TestCase):
             except Exception:
                 vps_proc.kill()
 
+    def test_vps_invite_link_roundtrip_and_auto_join_flow(self) -> None:
+        import tempfile
+        from civ6_p2p.glass_gui import GlassAppController
+        from civ6_p2p.protocol import build_vps_invite_code, parse_vps_invite_code
+
+        link = build_vps_invite_code(
+            kind="easytier",
+            node_address="tcp://vps.example.com:11010",
+            room_name="civ6 联机房",
+            room_key="my-key",
+            password="p@ss&w=rd#1",
+            node_name="香港 VPS",
+        )
+        self.assertTrue(link.startswith("c6vps://easytier?"))
+        parsed = parse_vps_invite_code(link)
+        self.assertEqual(parsed.kind, "easytier")
+        self.assertEqual(parsed.node_address, "tcp://vps.example.com:11010")
+        self.assertEqual(parsed.room_name, "civ6 联机房")
+        self.assertEqual(parsed.room_key, "my-key")
+        self.assertEqual(parsed.password, "p@ss&w=rd#1")
+        self.assertEqual(parsed.node_name, "香港 VPS")
+
+        with self.assertRaises(ValueError):
+            parse_vps_invite_code("https://example.com")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            host_ctrl = GlassAppController(
+                start_bg_poller=False,
+                vps_store_path=Path(tmpdir) / "host_vps.json",
+                prefs_path=Path(tmpdir) / "host_prefs.json",
+            )
+            client_ctrl = GlassAppController(
+                start_bg_poller=False,
+                vps_store_path=Path(tmpdir) / "client_vps.json",
+                prefs_path=Path(tmpdir) / "client_prefs.json",
+            )
+            relay = RelayServer(listen_port=0, auth_password="link-secret-42")
+            try:
+                rport = relay.start()
+                host_ctrl.start_node(role="host", nickname="LinkHost", port_text="0", room_key="custom-rk")
+                saved = host_ctrl.add_vps_node("测试VPS", f"127.0.0.1:{rport}", "udp_relay", "link-secret-42")
+                self.assertTrue(saved["ok"])
+                conn_h = host_ctrl.connect_easytier(saved["node"]["label"], "invite-room", password="link-secret-42")
+                self.assertTrue(conn_h["ok"])
+
+                host_state = host_ctrl.get_state()
+                vps_link = host_state["vps_invite_code"]
+                self.assertTrue(vps_link.startswith("c6vps://udp_relay?"))
+
+                client_ctrl.start_node(role="host", nickname="LinkClient", port_text="0", room_key="different-key")
+                join_res = client_ctrl.join_vps_invite(vps_link)
+                self.assertTrue(join_res["ok"])
+                self.assertEqual(join_res["room_name"], "invite-room")
+
+                deadline = time.monotonic() + 3.0
+                while time.monotonic() < deadline:
+                    st_c = client_ctrl.get_state()
+                    if st_c["peers"] and st_c["peers"][0]["status"] == "online":
+                        break
+                    time.sleep(0.05)
+
+                st_c = client_ctrl.get_state()
+                self.assertEqual(st_c["role"], "client")
+                self.assertEqual(st_c["conn_mode"], "relay")
+                self.assertEqual(st_c["room_key"], "custom-rk")
+                self.assertEqual(st_c["et_room"], "invite-room")
+                self.assertEqual(st_c["et_password"], "link-secret-42")
+                self.assertEqual(len(st_c["vps_nodes"]), 1)
+                self.assertEqual(st_c["vps_nodes"][0]["name"], "测试VPS")
+                self.assertEqual(st_c["vps_nodes"][0]["password"], "link-secret-42")
+                self.assertTrue(st_c["vps_nodes"][0]["has_password"])
+                self.assertEqual(st_c["et_node"], st_c["vps_nodes"][0]["label"])
+                self.assertEqual(st_c["et_status_level"], "connected")
+                self.assertEqual(len(st_c["peers"]), 1)
+                self.assertEqual(st_c["peers"][0]["nickname"], "LinkHost")
+
+                self.assertTrue(client_ctrl.test_peer(st_c["peers"][0]["peer_key"])["ok"])
+                deadline = time.monotonic() + 4.0
+                while time.monotonic() < deadline:
+                    st_v = client_ctrl.get_state()
+                    if not st_v["test_busy"] and st_v["gate"]["can_enter_step2"]:
+                        break
+                    time.sleep(0.08)
+                self.assertTrue(client_ctrl.get_state()["gate"]["can_enter_step2"])
+            finally:
+                client_ctrl.shutdown()
+                host_ctrl.shutdown()
+                relay.stop()
+
+    def test_vps_connectivity_probe_and_10s_log_interval(self) -> None:
+        import tempfile
+        from civ6_p2p.glass_gui import GlassAppController, load_glass_html
+        from civ6_p2p.vps_store import probe_vps_connectivity
+
+        html = load_glass_html()
+        self.assertIn("LOG_FLUSH_INTERVAL_MS = 10000", html)
+        self.assertIn("btn-test-vps", html)
+
+        tcp_srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_srv.bind(("127.0.0.1", 0))
+        tcp_srv.listen(4)
+        tcp_port = tcp_srv.getsockname()[1]
+
+        closed_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        closed_sock.bind(("127.0.0.1", 0))
+        closed_port = closed_sock.getsockname()[1]
+        closed_sock.close()
+
+        relay = RelayServer(listen_port=0, auth_password="probe-pw")
+        try:
+            rport = relay.start()
+
+            et_ok = probe_vps_connectivity("easytier", f"tcp://127.0.0.1:{tcp_port}", timeout_s=2.0)
+            self.assertTrue(et_ok.ok)
+            self.assertIsNotNone(et_ok.rtt_ms)
+
+            et_fail = probe_vps_connectivity("easytier", f"tcp://127.0.0.1:{closed_port}", timeout_s=1.5)
+            self.assertFalse(et_fail.ok)
+
+            udp_bad = probe_vps_connectivity("udp_relay", f"127.0.0.1:{rport}", password="wrong", timeout_s=1.5)
+            self.assertFalse(udp_bad.ok)
+            self.assertTrue(udp_bad.auth_error)
+
+            udp_ok = probe_vps_connectivity("udp_relay", f"127.0.0.1:{rport}", password="probe-pw", timeout_s=1.5)
+            self.assertTrue(udp_ok.ok)
+            self.assertFalse(udp_ok.auth_error)
+            self.assertIsNotNone(udp_ok.rtt_ms)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                ctrl = GlassAppController(start_bg_poller=False, vps_store_path=Path(tmpdir) / "vps.json")
+                try:
+                    start_r = ctrl.test_vps_node(f"relay://127.0.0.1:{rport}", password="probe-pw")
+                    self.assertTrue(start_r["ok"])
+                    deadline = time.monotonic() + 3.0
+                    while time.monotonic() < deadline:
+                        st = ctrl.get_state()
+                        if not st["vps_probe_busy"] and st["et_status_level"] == "connected":
+                            break
+                        time.sleep(0.05)
+                    st = ctrl.get_state()
+                    self.assertFalse(st["vps_probe_busy"])
+                    self.assertEqual(st["et_status_level"], "connected")
+                finally:
+                    ctrl.shutdown()
+        finally:
+            relay.stop()
+            tcp_srv.close()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

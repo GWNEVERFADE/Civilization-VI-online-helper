@@ -727,6 +727,12 @@ html[data-theme="dark"] .status-pill {
   z-index: 1;
 }
 
+.card-node,
+.card-method,
+.card-bridge-ctrl {
+  flex-shrink: 0;
+}
+
 .card-method,
 .card-bridge-ctrl {
   z-index: 10;
@@ -1304,9 +1310,39 @@ html[data-theme="dark"] .sub-glass-well {
 
 .relay-row {
   display: grid;
-  grid-template-columns: 1.72fr 0.62fr 0.78fr auto;
+  grid-template-columns: 1.65fr 0.56fr 0.72fr auto;
   align-items: end;
+  gap: 9px;
+}
+
+.vps-invite-box {
+  padding: 7px 9px;
+  border-radius: 12px;
+  background: var(--accent-soft-bg);
+  border: 1px solid var(--accent-soft-border);
+}
+
+.vps-invite-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
+  align-items: end;
+}
+
+.vps-invite-label {
+  color: var(--accent);
+}
+
+.vps-invite-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vps-invite-col .vps-input-row .glass-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .pw-wrap {
@@ -2141,6 +2177,16 @@ html[data-theme="dark"] .sub-glass-well {
   background: var(--glass-sub-bg);
   border: 1px solid var(--rim-border-subtle);
   color: var(--text-muted);
+}
+
+.log-interval-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft-bg);
+  border: 1px solid var(--accent-soft-border);
+  color: var(--accent);
 }
 
 .log-actions {

@@ -306,7 +306,7 @@ class EasyTierSession:
                     short = line[:360]
                     err_sig = short.split("connect to peer error", 1)[-1] if "connect to peer error" in short else short
                     now = time.monotonic()
-                    if err_sig != last_err_sig or (now - last_err_ts) >= 5.0:
+                    if err_sig != last_err_sig or (now - last_err_ts) >= 10.0:
                         last_err_sig = err_sig
                         last_err_ts = now
                         self._log("warn", f"[EasyTier] {short}")

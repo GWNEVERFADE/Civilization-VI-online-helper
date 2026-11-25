@@ -50,7 +50,7 @@
       lblInviteCode: "我的连接码",
       btnCopyInvite: "复制我的连接码",
       lblPeerAddr: "对方连接码 / IP",
-      phPeerAddr: "粘贴好友的 c6p2:// 连接码，或输入 [IPv6]:端口 / IPv4:端口",
+      phPeerAddr: "粘贴好友的 c6p2:// 或 c6vps:// 链接，或输入 [IPv6]:端口 / IPv4:端口",
       btnAddPeer: "添加并连接 / 打洞",
       lblVpsNode: "自定义 VPS 节点",
       phVpsNode: "点击「+ 添加 VPS」或输入 tcp://你的VPS:11010",
@@ -60,9 +60,17 @@
       lblVpsPassword: "连接密码（选填）",
       phVpsPassword: "无密码留空",
       togglePwTitle: "显示 / 隐藏密码",
+      btnTestVps: "检测连通",
+      btnTestVpsBusy: "检测中...",
       btnConnectVps: "连接 VPS 房间",
       btnConnectVpsBusy: "正在连接 VPS...",
       btnDisconnect: "断开",
+      lblVpsInviteCode: "🔗 我的 VPS 邀请链接（含节点/房间名/密码）",
+      phVpsInviteCode: "选好 VPS 节点与房间名后自动生成",
+      btnCopyVpsInvite: "复制链接",
+      lblVpsJoinLink: "🔗 通过房主 VPS 链接自动加入",
+      phVpsJoinLink: "粘贴房主的 c6vps:// 链接，自动同步节点/房间/密码并连接",
+      btnJoinVpsLink: "一键加入",
       card3Title: "在线成员与连通测试",
       card3Sub: "至少 2 人在线且测试通过后解锁第二步",
       btnTestPeer: "测试选中连接",
@@ -107,6 +115,7 @@
       activityTag: "状态",
       s2Tips: "使用要点：① 房主在文明6创建「局域网」房间并点「启动房主联机桥接」；② 加入者选择已通过测试的房主并点「启动加入者联机辅助」；③ 可先点「探测房主文明6房间」确认收到房间信息，再切回文明6局域网刷新加入。",
       logTitle: "运行日志",
+      logInterval: "每 10s 更新",
       btnCollapse: "收起",
       btnExpand: "展开",
       btnCopyLog: "复制日志",
@@ -148,8 +157,12 @@
       toastPeerEmpty: "请输入或粘贴对方的连接码 / IP 地址",
       toastPeerAdded: (k) => `已添加节点 ${k}，正在发起连接...`,
       toastVpsEmpty: "请先添加或输入自建 VPS 节点地址",
+      toastVpsProbing: "正在检测 VPS 节点连通性与延迟...",
       toastVpsConnecting: "正在连接自定义 VPS 中继通道...",
       toastVpsDisconnected: "已断开 VPS 中继连接",
+      toastVpsInviteCopied: "已复制 VPS 房间邀请链接，发给好友粘贴即可一键加入",
+      toastVpsLinkEmpty: "请先粘贴好友发送的 c6vps:// 邀请链接",
+      toastVpsLinkJoining: (room) => `已解析 VPS 邀请链接，正在自动加入房间 [${room}]...`,
       toastVpsSaved: (n) => `已保存 VPS 节点：${n}`,
       toastVpsDeleted: (n) => `已删除 VPS 节点：${n}`,
       toastTestRunning: "正在执行连通与 1150B 大包测试...",
@@ -227,10 +240,10 @@
           <p class="guide-desc">无密码可省略 <code>--password</code>。部署后点击 <strong>+ 添加 VPS</strong> → 选 <code>轻量 UDP 中继 (38668)</code> → 填 <code>你的VPS公网IP:38668</code> 与可选密码。</p>
         </div>
         <div class="guide-block">
-          <h4 class="guide-h4">客户端连接步骤</h4>
+          <h4 class="guide-h4">客户端连接步骤（支持一键链接加入）</h4>
           <ol class="guide-steps">
-            <li>房主在顶部选「房主」、好友选「加入者」，填写<strong>相同的「房间口令」</strong>。</li>
-            <li>在「方式二 · 自定义 VPS 中继」中选中同一自建 VPS 节点并填写<strong>相同的「房间名」</strong>，点击 <strong>连接 VPS 房间</strong>。</li>
+            <li><strong>房主端：</strong>选「房主」，在「方式二 · 自定义 VPS 中继」中选好自建 VPS 节点、填写房间名（及可选密码），点击 <strong>连接 VPS 房间</strong>，然后点击 <strong>复制链接</strong> 将 <code>c6vps://</code> 邀请链接发给好友。</li>
+            <li><strong>加入者端：</strong>无需手动配置节点与密码，直接将房主发来的 <code>c6vps://</code> 链接粘贴到 <strong>好友 VPS 邀请链接</strong> 中并点击 <strong>一键加入</strong>，软件会自动切为加入者、同步口令/密码并连入房间。</li>
             <li>待成员列表出现好友并显示「在线」后，点击 <strong>测试选中连接</strong>，测试通过即可进入第二步开启文明 6 联机辅助。</li>
           </ol>
         </div>
@@ -284,7 +297,7 @@
       lblInviteCode: "My Invite Code",
       btnCopyInvite: "Copy Code",
       lblPeerAddr: "Peer Code / IP",
-      phPeerAddr: "Paste friend's c6p2:// code, or [IPv6]:port / IPv4:port",
+      phPeerAddr: "Paste friend's c6p2:// or c6vps:// link, or [IPv6]:port / IPv4:port",
       btnAddPeer: "Add & Connect",
       lblVpsNode: "Custom VPS Node",
       phVpsNode: "Click \"+ Add VPS\" or enter tcp://your-vps:11010",
@@ -294,9 +307,17 @@
       lblVpsPassword: "Password (Opt.)",
       phVpsPassword: "Optional",
       togglePwTitle: "Show / Hide Password",
+      btnTestVps: "Test VPS",
+      btnTestVpsBusy: "Testing...",
       btnConnectVps: "Connect VPS",
       btnConnectVpsBusy: "Connecting...",
       btnDisconnect: "Disconnect",
+      lblVpsInviteCode: "🔗 My VPS Invite Link (Node / Room / Password)",
+      phVpsInviteCode: "Auto-generated once VPS node & room are set",
+      btnCopyVpsInvite: "Copy Link",
+      lblVpsJoinLink: "🔗 Auto-Join via Host's VPS Link",
+      phVpsJoinLink: "Paste Host's c6vps:// link to sync node, room & password",
+      btnJoinVpsLink: "Auto Join",
       card3Title: "Online Peers & Connectivity Test",
       card3Sub: "2+ online & verified to unlock Step 2",
       btnTestPeer: "Test Selected",
@@ -341,6 +362,7 @@
       activityTag: "Status",
       s2Tips: "Quick Tips: 1) Host creates a Local Network lobby in Civ VI and clicks \"Start Host Bridge\"; 2) Clients choose the verified Host and click \"Start Client Helper\"; 3) Click \"Probe Host Lobby\" to confirm room info, then refresh Civ VI LAN list to join.",
       logTitle: "Runtime Log",
+      logInterval: "10s refresh",
       btnCollapse: "Collapse",
       btnExpand: "Expand",
       btnCopyLog: "Copy Log",
@@ -382,8 +404,12 @@
       toastPeerEmpty: "Please enter or paste your friend's invite code / IP",
       toastPeerAdded: (k) => `Added peer ${k}, initiating connection...`,
       toastVpsEmpty: "Please add or enter a custom VPS node address first",
+      toastVpsProbing: "Testing VPS node connectivity & latency...",
       toastVpsConnecting: "Connecting to custom VPS relay...",
       toastVpsDisconnected: "Disconnected from VPS relay",
+      toastVpsInviteCopied: "Copied VPS invite link. Send it to friends for one-click join",
+      toastVpsLinkEmpty: "Please paste a friend's c6vps:// invite link first",
+      toastVpsLinkJoining: (room) => `Parsed VPS invite link, auto-joining room [${room}]...`,
       toastVpsSaved: (n) => `Saved VPS node: ${n}`,
       toastVpsDeleted: (n) => `Deleted VPS node: ${n}`,
       toastTestRunning: "Running latency & 1150B MTU connectivity test...",
@@ -461,16 +487,18 @@
           <p class="guide-desc">Omit <code>--password</code> for open mode. Then click <strong>+ Add VPS</strong> → choose <code>Lightweight UDP Relay (38668)</code> → enter <code>YOUR_VPS_IP:38668</code> and optional password.</p>
         </div>
         <div class="guide-block">
-          <h4 class="guide-h4">Client Connection Steps</h4>
+          <h4 class="guide-h4">Client Connection Steps (One-Click Invite Link)</h4>
           <ol class="guide-steps">
-            <li>Host selects "Host", friends select "Client", and all players set the <strong>same Room Key</strong>.</li>
-            <li>In "Mode 2 · Custom VPS Relay", choose the same VPS node and <strong>same Room Name</strong>, then click <strong>Connect VPS</strong>.</li>
+            <li><strong>Host:</strong> Select "Host", choose your VPS node, Room Name (and optional password), click <strong>Connect VPS</strong>, then click <strong>Copy Link</strong> to share the <code>c6vps://</code> invite link.</li>
+            <li><strong>Client:</strong> Simply paste the Host's <code>c6vps://</code> link into <strong>Friend's VPS Invite Link</strong> and click <strong>Auto Join</strong> — role, room key, VPS address, room name, and password sync automatically.</li>
             <li>Once friends appear "Online", click <strong>Test Selected</strong> to unlock Step 2 and start the Civ VI helper.</li>
           </ol>
         </div>
       `,
     },
   };
+
+  const LOG_FLUSH_INTERVAL_MS = 10000;
 
   const state = {
     lang: "zh",
@@ -479,6 +507,8 @@
     lastLogId: 0,
     lastEventId: 0,
     logCount: 0,
+    pendingLogs: [],
+    lastLogFlushAt: 0,
     theme: "light",
     latest: null,
     pollTimer: null,
@@ -1303,9 +1333,13 @@
     $("btn-open-add-vps").disabled = data.et_connected_or_running;
     $("input-et-room").disabled = data.et_connected_or_running;
     $("input-et-password").disabled = data.et_connected_or_running;
+    $("btn-test-vps").disabled = Boolean(data.vps_probe_busy);
+    $("btn-test-vps").textContent = data.vps_probe_busy ? t("btnTestVpsBusy") : t("btnTestVps");
     $("btn-et-connect").disabled = data.et_connected_or_running;
     $("btn-et-connect").textContent = data.et_connecting ? t("btnConnectVpsBusy") : t("btnConnectVps");
     $("btn-et-disconnect").disabled = !data.et_connected_or_running;
+    $("input-vps-invite-code").value = data.vps_invite_code || "";
+    $("btn-join-vps-link").disabled = data.et_connecting;
     $("et-status-bar").dataset.level = data.et_status_level || "idle";
     $("et-status-text").textContent = data.et_status || "";
 
@@ -1397,9 +1431,19 @@
     $("bridge-activity-text").textContent = s2.bridge_activity;
 
     if (data.logs && data.logs.length > 0) {
-      appendLogs(data.logs);
+      state.pendingLogs.push(...data.logs);
     }
     state.lastLogId = data.last_log_id || state.lastLogId;
+    const nowMs = Date.now();
+    if (
+      state.pendingLogs.length > 0 &&
+      (state.lastLogFlushAt === 0 || nowMs - state.lastLogFlushAt >= LOG_FLUSH_INTERVAL_MS)
+    ) {
+      const batch = state.pendingLogs;
+      state.pendingLogs = [];
+      state.lastLogFlushAt = nowMs;
+      appendLogs(batch);
+    }
 
     if (data.events && data.events.length > 0) {
       state.lastEventId = data.last_event_id || state.lastEventId;
@@ -1465,6 +1509,15 @@
     await refreshState();
   }
 
+  function applyVpsJoinSync(res) {
+    if (!res) return;
+    if (res.et_node !== undefined) $("input-et-node").value = res.et_node;
+    if (res.et_room !== undefined) $("input-et-room").value = res.et_room;
+    if (res.et_password !== undefined) $("input-et-password").value = res.et_password;
+    if (res.room_key !== undefined) $("input-room-key").value = res.room_key;
+    if (res.vps_invite_code !== undefined) $("input-vps-invite-code").value = res.vps_invite_code;
+  }
+
   async function handleAddPeer() {
     const input = $("input-peer-addr");
     const raw = input.value.trim();
@@ -1496,8 +1549,69 @@
       await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "error" });
     } else if (res && res.ok) {
       input.value = "";
-      state.selectedPeerKey = res.peer_key || "";
-      showToast(t("toastPeerAdded", res.peer_key), "ok");
+      if (res.room_name) {
+        applyVpsJoinSync(res);
+        showToast(t("toastVpsLinkJoining", res.room_name), "ok");
+      } else {
+        state.selectedPeerKey = res.peer_key || "";
+        showToast(t("toastPeerAdded", res.peer_key), "ok");
+      }
+    }
+    await refreshState();
+  }
+
+  async function handleCopyVpsInvite() {
+    await callApi("update_form", {
+      room_key: $("input-room-key").value,
+      et_node: $("input-et-node").value,
+      et_room: $("input-et-room").value,
+      et_password: $("input-et-password").value,
+    });
+    const res = await callApi("copy_vps_invite_code");
+    if (res && !res.ok) {
+      await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "info" });
+    } else if (res && res.ok) {
+      if (res.code) $("input-vps-invite-code").value = res.code;
+      showToast(t("toastVpsInviteCopied"), "ok");
+    }
+    await refreshState();
+  }
+
+  async function handleJoinVpsLink() {
+    const input = $("input-vps-join-link");
+    const raw = input.value.trim();
+    if (!raw) {
+      showToast(t("toastVpsLinkEmpty"), "warn");
+      input.focus();
+      return;
+    }
+    await callApi("update_form", {
+      nickname: $("input-nickname").value,
+      port_text: $("input-port").value,
+    });
+    const res = await callApi("join_vps_invite", raw);
+    if (res && !res.ok) {
+      await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "error" });
+    } else if (res && res.ok) {
+      input.value = "";
+      applyVpsJoinSync(res);
+      showToast(t("toastVpsLinkJoining", res.room_name || ""), "ok");
+    }
+    await refreshState();
+  }
+
+  async function handleTestVpsNode() {
+    const rawNode = $("input-et-node").value.trim() || $("input-vps-join-link").value.trim();
+    if (!rawNode) {
+      showToast(t("toastVpsEmpty"), "warn");
+      $("input-et-node").focus();
+      return;
+    }
+    const res = await callApi("test_vps_node", rawNode, $("input-et-password").value);
+    if (res && !res.ok) {
+      await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "error" });
+    } else if (res && res.ok) {
+      showToast(t("toastVpsProbing"), "info");
     }
     await refreshState();
   }
@@ -1523,7 +1637,12 @@
     if (res && !res.ok) {
       await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "error" });
     } else if (res && res.ok) {
-      showToast(t("toastVpsConnecting"), "info");
+      if (res.room_name) {
+        applyVpsJoinSync(res);
+        showToast(t("toastVpsLinkJoining", res.room_name), "ok");
+      } else {
+        showToast(t("toastVpsConnecting"), "info");
+      }
     }
     await refreshState();
   }
@@ -1614,12 +1733,27 @@
     const syncField = (el, key) => {
       const handler = async () => {
         await callApi("update_form", { [key]: el.value });
-        if (key === "nickname" || key === "selected_address" || key === "room_key") {
+        if (
+          key === "nickname" ||
+          key === "selected_address" ||
+          key === "room_key" ||
+          key === "et_node" ||
+          key === "et_room" ||
+          key === "et_password"
+        ) {
           await refreshState();
         }
       };
       el.addEventListener("change", handler);
-      if (key === "nickname") el.addEventListener("input", handler);
+      if (
+        key === "nickname" ||
+        key === "room_key" ||
+        key === "et_node" ||
+        key === "et_room" ||
+        key === "et_password"
+      ) {
+        el.addEventListener("input", handler);
+      }
     };
     syncField($("input-nickname"), "nickname");
     syncField($("input-port"), "port_text");
@@ -1649,8 +1783,17 @@
     });
 
     $("btn-open-add-vps").addEventListener("click", openAddVpsModal);
+    $("btn-test-vps").addEventListener("click", handleTestVpsNode);
     $("btn-et-connect").addEventListener("click", handleConnectEasyTier);
     $("btn-et-disconnect").addEventListener("click", handleDisconnectEasyTier);
+    $("btn-copy-vps-invite").addEventListener("click", handleCopyVpsInvite);
+    $("btn-join-vps-link").addEventListener("click", handleJoinVpsLink);
+    $("input-vps-join-link").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void handleJoinVpsLink();
+      }
+    });
 
     $("btn-test-peer").addEventListener("click", handleTestPeer);
     $("btn-remove-peer").addEventListener("click", handleRemovePeer);
@@ -1676,6 +1819,8 @@
     });
     $("btn-clear-log").addEventListener("click", async () => {
       await callApi("clear_logs");
+      state.pendingLogs = [];
+      state.lastLogFlushAt = Date.now();
       $("log-body").innerHTML = "";
       $("log-count").textContent = "0";
     });

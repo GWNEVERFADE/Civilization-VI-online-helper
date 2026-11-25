@@ -19,10 +19,13 @@ from .protocol import (
     DEFAULT_RELAY_PORT,
     DEFAULT_RELAY_ROOM,
     DEFAULT_ROOM_KEY,
+    VPS_INVITE_SCHEME,
     build_invite_code,
+    build_vps_invite_code,
     parse_peer_input,
+    parse_vps_invite_code,
 )
-from .vps_store import VpsNodeStore, resolve_relay_node
+from .vps_store import VpsNodeStore, normalize_vps_node_address, probe_vps_connectivity, resolve_relay_node
 from .win_civ6 import Civ6LocalState, inspect_civ6_state
 
 
@@ -58,6 +61,7 @@ class Civ6P2PApp(tk.Tk):
         self.local_civ6_state: Civ6LocalState = Civ6LocalState()
         self._civ6_state_lock = threading.Lock()
         self._last_civ6_poll = 0.0
+        self._last_log_flush = 0.0
 
         self.p2p_node: P2PNode | None = None
         self.easytier_session: EasyTierSession | None = None
@@ -83,6 +87,8 @@ class Civ6P2PApp(tk.Tk):
         self.et_node_var = tk.StringVar(value="")
         self.et_room_var = tk.StringVar(value=DEFAULT_RELAY_ROOM)
         self.et_password_var = tk.StringVar(value="")
+        self.et_my_link_var = tk.StringVar(value="")
+        self.et_join_link_var = tk.StringVar(value="")
         self.et_status_var = tk.StringVar(value="⚪ 未连接 VPS 中继（请先添加或输入自建 VPS 节点）")
         self._relay_active_kind: str = ""
 
@@ -352,18 +358,37 @@ class Civ6P2PApp(tk.Tk):
         self.et_add_vps_btn.pack(side="left", padx=(0, 6))
         self.et_del_vps_btn = ttk.Button(r_act, text="删除", style="Soft.TButton", command=self._delete_selected_vps_node)
         self.et_del_vps_btn.pack(side="left", padx=(0, 6))
+        self.et_test_vps_btn = ttk.Button(r_act, text="检测连通", style="Soft.TButton", command=self._test_vps_node)
+        self.et_test_vps_btn.pack(side="left", padx=(0, 6))
         self.et_conn_btn = ttk.Button(r_act, text="连接 VPS 房间", style="Accent.TButton", command=self._connect_easytier)
         self.et_conn_btn.pack(side="left", padx=(0, 6))
         self.et_disc_btn = ttk.Button(r_act, text="断开", style="Soft.TButton", command=self._disconnect_easytier, state="disabled")
         self.et_disc_btn.pack(side="left")
 
+        ttk.Label(self.panel_relay, text="我的VPS链接:", style="SubBody.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 6), pady=3)
+        self.et_my_link_entry = ttk.Entry(self.panel_relay, textvariable=self.et_my_link_var, state="readonly")
+        self.et_my_link_entry.grid(row=1, column=1, columnspan=5, sticky="ew", padx=(0, 8), pady=3)
+        ttk.Button(self.panel_relay, text="复制VPS链接", style="Soft.TButton", command=self._copy_vps_invite).grid(
+            row=1, column=6, sticky="e", pady=3
+        )
+
+        ttk.Label(self.panel_relay, text="好友VPS链接:", style="SubBody.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 6), pady=3)
+        self.et_join_link_entry = ttk.Entry(self.panel_relay, textvariable=self.et_join_link_var)
+        self.et_join_link_entry.grid(row=2, column=1, columnspan=5, sticky="ew", padx=(0, 8), pady=3)
+        self.et_join_link_entry.bind("<Return>", lambda _e: self._join_vps_invite())
+        ttk.Button(self.panel_relay, text="链接一键加入", style="Accent.TButton", command=self._join_vps_invite).grid(
+            row=2, column=6, sticky="e", pady=3
+        )
+
         ttk.Label(self.panel_relay, textvariable=self.et_status_var, style="SubMono.TLabel").grid(
-            row=1, column=0, columnspan=7, sticky="w", pady=(5, 3)
+            row=3, column=0, columnspan=7, sticky="w", pady=(5, 3)
         )
         guide_bar = ttk.Frame(self.panel_relay, style="SubCard.TFrame")
-        guide_bar.grid(row=2, column=0, columnspan=7, sticky="w", pady=(2, 0))
+        guide_bar.grid(row=4, column=0, columnspan=7, sticky="w", pady=(2, 0))
         ttk.Button(guide_bar, text="P2P 使用说明", style="Soft.TButton", command=self._show_p2p_guide).pack(side="left", padx=(0, 6))
         ttk.Button(guide_bar, text="VPS 使用说明", style="Soft.TButton", command=self._show_vps_guide).pack(side="left")
+        for _v in (self.et_node_var, self.et_room_var, self.et_password_var, self.room_key_var):
+            _v.trace_add("write", lambda *_a: self._update_vps_invite_code())
         self._reload_vps_choices()
 
         self._switch_conn_mode()
@@ -714,6 +739,11 @@ class Civ6P2PApp(tk.Tk):
 
     def _add_peer(self) -> None:
         raw = self.peer_input_var.get().strip()
+        if raw.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            self.peer_input_var.set("")
+            self.et_join_link_var.set(raw)
+            self._join_vps_invite()
+            return
         try:
             parsed = parse_peer_input(raw, default_port=DEFAULT_P2P_PORT)
         except ValueError as e:
@@ -794,6 +824,27 @@ class Civ6P2PApp(tk.Tk):
         elif not self.et_node_var.get().strip() and labels:
             self.et_node_var.set(labels[0])
             self.et_password_var.set(self._vps_label_to_pw.get(labels[0], ""))
+        self._update_vps_invite_code()
+
+    def _update_vps_invite_code(self) -> None:
+        raw_nodes = self.et_node_var.get().strip()
+        room_name = self.et_room_var.get().strip()
+        if not raw_nodes or not room_name or raw_nodes.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            self.et_my_link_var.set("")
+            return
+        try:
+            kind, norm_addr, display_name, saved_pw = resolve_relay_node(raw_nodes, self._vps_store.list_nodes())
+            code = build_vps_invite_code(
+                kind=kind,
+                node_address=norm_addr,
+                room_name=room_name,
+                room_key=self.room_key_var.get().strip() or DEFAULT_ROOM_KEY,
+                password=self.et_password_var.get().strip() or saved_pw,
+                node_name=display_name,
+            )
+            self.et_my_link_var.set(code)
+        except Exception:
+            self.et_my_link_var.set("")
 
     def _prompt_add_vps_node(self) -> None:
         dlg = tk.Toplevel(self)
@@ -858,8 +909,101 @@ class Civ6P2PApp(tk.Tk):
             self.easytier_session.stop()
             self.easytier_session = None
 
+    def _copy_vps_invite(self) -> None:
+        raw_nodes = self.et_node_var.get().strip()
+        room_name = self.et_room_var.get().strip()
+        if not raw_nodes or not room_name:
+            messagebox.showinfo("提示", "请先选择 VPS 节点并填写房间名。")
+            return
+        try:
+            kind, norm_addr, display_name, saved_pw = resolve_relay_node(raw_nodes, self._vps_store.list_nodes())
+            code = build_vps_invite_code(
+                kind=kind,
+                node_address=norm_addr,
+                room_name=room_name,
+                room_key=self.room_key_var.get().strip() or DEFAULT_ROOM_KEY,
+                password=self.et_password_var.get().strip() or saved_pw,
+                node_name=display_name,
+            )
+        except ValueError as e:
+            messagebox.showerror("无法生成 VPS 链接", str(e))
+            return
+        self.et_my_link_var.set(code)
+        self.clipboard_clear()
+        self.clipboard_append(code)
+        self.update_idletasks()
+        self._append_log("ok", f"已复制 VPS 房间邀请链接 (房间={room_name})，发给好友粘贴即可一键加入。")
+
+    def _join_vps_invite(self) -> None:
+        raw = self.et_join_link_var.get().strip()
+        if not raw:
+            messagebox.showinfo("提示", "请先粘贴房主发来的 c6vps:// 邀请链接。")
+            return
+        try:
+            parsed = parse_vps_invite_code(raw)
+            norm_addr = normalize_vps_node_address(parsed.node_address, kind=parsed.kind)
+        except ValueError as e:
+            messagebox.showerror("VPS 邀请链接无效", str(e))
+            return
+        if self.host_bridge is not None or self.client_bridge is not None:
+            self._stop_civ6_bridge()
+        self._disconnect_easytier()
+        self.conn_mode_var.set("relay")
+        self._switch_conn_mode()
+        self.role_var.set("client")
+        if self.p2p_node and self.p2p_node.running and self.p2p_node.room_key != parsed.room_key:
+            self._stop_p2p_node()
+        self.room_key_var.set(parsed.room_key)
+        saved_item = self._vps_store.add_node(
+            name=parsed.node_name,
+            address=norm_addr,
+            kind=parsed.kind,
+            password=parsed.password,
+        )
+        self._reload_vps_choices(select_label=saved_item.display_label())
+        self.et_room_var.set(parsed.room_name)
+        self.et_password_var.set(parsed.password)
+        self.et_join_link_var.set("")
+        self._connect_easytier()
+
+    def _test_vps_node(self) -> None:
+        raw = self.et_node_var.get().strip() or self.et_join_link_var.get().strip()
+        if not raw:
+            messagebox.showinfo("提示", "请先选择或输入 VPS 节点地址。")
+            return
+        try:
+            if raw.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+                parsed = parse_vps_invite_code(raw)
+                kind = parsed.kind
+                norm_addr = normalize_vps_node_address(parsed.node_address, kind=kind)
+                vps_pw = parsed.password
+                rk = parsed.room_key
+            else:
+                kind, norm_addr, _name, saved_pw = resolve_relay_node(raw, self._vps_store.list_nodes())
+                vps_pw = self.et_password_var.get().strip() or saved_pw
+                rk = self.room_key_var.get().strip() or DEFAULT_ROOM_KEY
+        except ValueError as e:
+            messagebox.showerror("VPS 节点格式错误", str(e))
+            return
+
+        self.et_test_vps_btn.configure(state="disabled")
+        self.et_status_var.set("🟡 正在检测 VPS 节点连通性与延迟...")
+
+        def worker() -> None:
+            try:
+                res = probe_vps_connectivity(kind=kind, norm_addr=norm_addr, password=vps_pw, room_key=rk, timeout_s=3.0)
+                self.ui_queue.put(("vps_probe_done", res))
+            except Exception as e:
+                self.ui_queue.put(("vps_probe_err", str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _connect_easytier(self) -> None:
         raw_nodes = self.et_node_var.get().strip()
+        if raw_nodes.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            self.et_join_link_var.set(raw_nodes)
+            self._join_vps_invite()
+            return
         room_name = self.et_room_var.get().strip()
         if not room_name:
             messagebox.showerror("参数错误", "请填写中继房间名（房主与好友填相同的房间名与房间口令）。")
@@ -1147,13 +1291,19 @@ class Civ6P2PApp(tk.Tk):
 
 
     def _ui_tick(self) -> None:
-        try:
-            while True:
-                level, line = self.log_queue.get_nowait()
-                self.log_text.insert("end", line + "\n", level)
+        now = time.monotonic()
+        if self._last_log_flush == 0.0 or (now - self._last_log_flush) >= 10.0:
+            flushed = False
+            try:
+                while True:
+                    level, line = self.log_queue.get_nowait()
+                    self.log_text.insert("end", line + "\n", level)
+                    flushed = True
+            except queue.Empty:
+                pass
+            if flushed:
                 self.log_text.see("end")
-        except queue.Empty:
-            pass
+            self._last_log_flush = now
 
         try:
             while True:
@@ -1162,7 +1312,6 @@ class Civ6P2PApp(tk.Tk):
         except queue.Empty:
             pass
 
-        now = time.monotonic()
         if now - self._last_civ6_poll >= 2.0:
             self._last_civ6_poll = now
             threading.Thread(target=self._poll_local_civ6_bg, daemon=True).start()
@@ -1257,6 +1406,22 @@ class Civ6P2PApp(tk.Tk):
             if self.client_bridge and self.client_bridge.running:
                 self.probe_room_btn.configure(state="normal")
             messagebox.showerror("探测出错", str(payload))
+        elif ev == "vps_probe_done":
+            self.et_test_vps_btn.configure(state="normal")
+            res = payload
+            ok = bool(getattr(res, "ok", False))
+            summary = getattr(res, "summary_zh", "")
+            detail = getattr(res, "detail_zh", "")
+            self.et_status_var.set(("🟢 " if ok else "🔴 ") + summary)
+            self._append_log("ok" if ok else "warn", summary)
+            if ok:
+                messagebox.showinfo("VPS 连通性检测通过", detail)
+            else:
+                messagebox.showwarning("VPS 连通性检测失败", detail)
+        elif ev == "vps_probe_err":
+            self.et_test_vps_btn.configure(state="normal")
+            self.et_status_var.set(f"🔴 VPS 检测出错: {payload}")
+            messagebox.showerror("检测出错", str(payload))
 
     def _refresh_peer_table(self) -> None:
         node_running = bool(self.p2p_node and self.p2p_node.running)

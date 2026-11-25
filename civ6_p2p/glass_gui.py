@@ -22,10 +22,19 @@ from .protocol import (
     DEFAULT_RELAY_PORT,
     DEFAULT_RELAY_ROOM,
     DEFAULT_ROOM_KEY,
+    VPS_INVITE_SCHEME,
     build_invite_code,
+    build_vps_invite_code,
     parse_peer_input,
+    parse_vps_invite_code,
 )
-from .vps_store import UiPrefsStore, VpsNodeStore, resolve_relay_node
+from .vps_store import (
+    UiPrefsStore,
+    VpsNodeStore,
+    normalize_vps_node_address,
+    probe_vps_connectivity,
+    resolve_relay_node,
+)
 from .win_civ6 import Civ6LocalState, inspect_civ6_state
 
 
@@ -351,6 +360,10 @@ class GlassAppController:
         self.et_status_code: str = "idle"
         self.et_status_level: str = "idle"
         self.et_connecting: bool = False
+        self.vps_probe_busy: bool = False
+        self.vps_probe_status_zh: str = ""
+        self.vps_probe_status_en: str = ""
+        self.vps_probe_level: str = "idle"
         self.relay_active_kind: str = ""
         self.relay_active_name: str = ""
 
@@ -529,7 +542,33 @@ class GlassAppController:
             if not cur or cur not in labels:
                 self.selected_address = labels[0]
 
+    def _compute_vps_invite_code(self) -> str:
+        raw_node = self.et_node.strip()
+        room = self.et_room.strip()
+        if not raw_node or not room:
+            return ""
+        if raw_node.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            return raw_node
+        try:
+            kind, norm_addr, display_name, _saved_pw = resolve_relay_node(
+                raw_node, self._vps_store.list_nodes()
+            )
+            return build_vps_invite_code(
+                kind=kind,
+                node_address=norm_addr,
+                room_name=room,
+                room_key=self.room_key.strip() or DEFAULT_ROOM_KEY,
+                password=self.et_password.strip(),
+                node_name=display_name,
+            )
+        except Exception:
+            return ""
+
     def _format_et_idle_status(self) -> str:
+        if self.vps_probe_busy:
+            return self._tr("正在检测 VPS 节点连通性与延迟...", "Testing VPS node connectivity & latency...")
+        if self.vps_probe_status_zh and not (self.et_connecting or self.relay_active_kind):
+            return self._tr(self.vps_probe_status_zh, self.vps_probe_status_en or self.vps_probe_status_zh)
         if self.et_status_code == "disconnected":
             return self._tr("已断开 VPS 中继", "Disconnected from VPS Relay")
         if self.et_status_code == "starting":
@@ -567,7 +606,11 @@ class GlassAppController:
             step2_unlocked = gate.can_enter_step2 or active_bridge
 
             et_status = self._format_et_idle_status()
-            et_level = self.et_status_level
+            et_level = (
+                "connecting"
+                if self.vps_probe_busy
+                else (self.vps_probe_level if self.vps_probe_status_zh and not (self.et_connecting or self.relay_active_kind) else self.et_status_level)
+            )
             et_alive = bool(self.easytier_session is not None and self.easytier_session.running)
             relay_connected_or_running = bool(
                 et_alive or self.et_connecting or self.relay_active_kind == "udp_relay"
@@ -806,8 +849,10 @@ class GlassAppController:
                 "et_node": self.et_node,
                 "et_room": self.et_room,
                 "et_password": self.et_password,
+                "vps_invite_code": self._compute_vps_invite_code(),
                 "et_connected_or_running": relay_connected_or_running,
                 "et_connecting": self.et_connecting,
+                "vps_probe_busy": self.vps_probe_busy,
                 "et_status": et_status,
                 "et_status_level": et_level,
                 "peers": peer_rows,
@@ -902,7 +947,11 @@ class GlassAppController:
             if "target_host_key" in fields and not self._has_active_bridge():
                 self.target_host_key = str(fields["target_host_key"])
 
-            return {"ok": True, "invite_code": self._compute_invite_code()}
+            return {
+                "ok": True,
+                "invite_code": self._compute_invite_code(),
+                "vps_invite_code": self._compute_vps_invite_code(),
+            }
 
     def refresh_network_info(self) -> dict[str, Any]:
         info = detect_local_network_info()
@@ -946,6 +995,99 @@ class GlassAppController:
             self._tr(f"已复制本机连接码: {code}", f"Copied invite code: {code}"),
         )
         return {"ok": True, "code": code}
+
+    def copy_vps_invite_code(self) -> dict[str, Any]:
+        with self._lock:
+            code = self._compute_vps_invite_code()
+            room = self.et_room.strip()
+        if not code:
+            return {
+                "ok": False,
+                "title": self._tr("无法生成 VPS 链接", "Cannot Build VPS Link"),
+                "message": self._tr(
+                    "请先选择或填写自定义 VPS 节点地址与房间名，再复制 VPS 邀请链接。",
+                    "Please select or enter a custom VPS node address and room name first.",
+                ),
+            }
+        _set_windows_clipboard(code)
+        self._append_log(
+            "ok",
+            self._tr(
+                f"已复制 VPS 房间邀请链接 (房间={room})，发给好友粘贴即可一键加入。",
+                f"Copied VPS room invite link (room={room}). Send it to friends for one-click join.",
+            ),
+        )
+        return {"ok": True, "code": code}
+
+    def join_vps_invite(self, raw_link: str) -> dict[str, Any]:
+        try:
+            parsed = parse_vps_invite_code(raw_link)
+            norm_addr = normalize_vps_node_address(parsed.node_address, kind=parsed.kind)
+        except ValueError as e:
+            return {
+                "ok": False,
+                "title": self._tr("VPS 邀请链接无效", "Invalid VPS Invite Link"),
+                "message": str(e),
+            }
+
+        with self._lock:
+            if self.host_bridge is not None or self.client_bridge is not None:
+                self.stop_civ6_bridge()
+            if (
+                self.easytier_session is not None
+                or self.relay_active_kind
+                or (self.p2p_node and self.p2p_node.get_relay_status().enabled)
+            ):
+                self.disconnect_easytier()
+
+            self.conn_mode = "relay"
+            self.role = "client"
+            need_restart = bool(
+                self.p2p_node
+                and self.p2p_node.running
+                and self.p2p_node.room_key != parsed.room_key
+            )
+            self.room_key = parsed.room_key
+            if need_restart:
+                self.stop_node()
+            elif self.p2p_node and self.p2p_node.running:
+                self.p2p_node.update_identity(nickname=self.nickname, role="client")
+
+            saved_item = self._vps_store.add_node(
+                name=parsed.node_name,
+                address=norm_addr,
+                kind=parsed.kind,
+                password=parsed.password,
+            )
+            target_node_text = saved_item.display_label()
+
+            self.et_node = target_node_text
+            self.et_room = parsed.room_name
+            self.et_password = parsed.password
+
+        kind_txt = (
+            self._tr("UDP 中继", "UDP Relay")
+            if parsed.kind == "udp_relay"
+            else "EasyTier"
+        )
+        pw_txt = self._tr(" · 含密码", " · with password") if parsed.password else ""
+        self._append_log(
+            "p2p",
+            self._tr(
+                f"已同步 VPS 节点与房间信息，正在自动加入房间 [{parsed.room_name}] ({kind_txt} · {norm_addr}{pw_txt})...",
+                f"Synced VPS node & room info, auto-joining room [{parsed.room_name}] ({kind_txt} · {norm_addr}{pw_txt})...",
+            ),
+        )
+        res = self.connect_easytier(target_node_text, parsed.room_name, password=parsed.password)
+        if res.get("ok"):
+            res["room_name"] = parsed.room_name
+            res["node_address"] = norm_addr
+            res["et_node"] = target_node_text
+            res["et_room"] = parsed.room_name
+            res["et_password"] = parsed.password
+            res["room_key"] = parsed.room_key
+            res["vps_invite_code"] = self._compute_vps_invite_code()
+        return res
 
     def start_node(
         self,
@@ -1138,6 +1280,8 @@ class GlassAppController:
 
     def add_peer(self, raw_input: str, force_sync_key: bool = False) -> dict[str, Any]:
         raw = str(raw_input).strip()
+        if raw.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            return self.join_vps_invite(raw)
         try:
             parsed = parse_peer_input(raw, default_port=DEFAULT_P2P_PORT)
         except ValueError as e:
@@ -1193,8 +1337,99 @@ class GlassAppController:
             )
             return {"ok": True, "peer_key": peer.peer_key}
 
+    def test_vps_node(self, raw_nodes: str, password: str | None = None) -> dict[str, Any]:
+        raw = str(raw_nodes or "").strip()
+        with self._lock:
+            if self.vps_probe_busy:
+                return {"ok": True, "busy": True}
+            saved_nodes = self._vps_store.list_nodes()
+            rk = self.room_key.strip() or DEFAULT_ROOM_KEY
+            cur_pw = self.et_password.strip()
+
+        try:
+            if raw.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+                parsed = parse_vps_invite_code(raw)
+                kind = parsed.kind
+                norm_addr = normalize_vps_node_address(parsed.node_address, kind=kind)
+                display_name = parsed.node_name or norm_addr
+                vps_pw = parsed.password
+                rk = parsed.room_key or rk
+            else:
+                kind, norm_addr, display_name, saved_pw = resolve_relay_node(raw, saved_nodes)
+                vps_pw = str(password).strip()[:128] if password is not None else (cur_pw or saved_pw)
+        except ValueError as e:
+            return {
+                "ok": False,
+                "title": self._tr("VPS 节点格式错误", "Invalid VPS Node"),
+                "message": str(e),
+            }
+
+        with self._lock:
+            self.vps_probe_busy = True
+            self.vps_probe_status_zh = ""
+            self.vps_probe_status_en = ""
+            self.vps_probe_level = "connecting"
+
+        self._append_log(
+            "p2p",
+            self._tr(
+                f"正在检测 VPS 节点连通性: {display_name} ({norm_addr})...",
+                f"Testing VPS node connectivity: {display_name} ({norm_addr})...",
+            ),
+        )
+
+        def worker() -> None:
+            try:
+                res = probe_vps_connectivity(
+                    kind=kind,
+                    norm_addr=norm_addr,
+                    password=vps_pw,
+                    room_key=rk,
+                    timeout_s=3.0,
+                )
+                with self._lock:
+                    self.vps_probe_busy = False
+                    self.vps_probe_status_zh = res.summary_zh
+                    self.vps_probe_status_en = res.summary_en
+                    self.vps_probe_level = "connected" if res.ok else "error"
+                self._append_log(
+                    "ok" if res.ok else "warn",
+                    self._tr(res.summary_zh, res.summary_en),
+                )
+                self._push_event(
+                    "modal",
+                    {
+                        "level": "ok" if res.ok else "error",
+                        "title": self._tr(
+                            "VPS 连通性检测通过" if res.ok else "VPS 连通性检测失败",
+                            "VPS Connectivity Check Passed" if res.ok else "VPS Connectivity Check Failed",
+                        ),
+                        "message": self._tr(res.detail_zh, res.detail_en),
+                    },
+                )
+            except Exception as e:
+                with self._lock:
+                    self.vps_probe_busy = False
+                    self.vps_probe_status_zh = f"VPS 连通性检测异常: {e}"
+                    self.vps_probe_status_en = f"VPS connectivity check error: {e}"
+                    self.vps_probe_level = "error"
+                self._append_log("error", self._tr(f"VPS 连通性检测异常: {e}", f"VPS connectivity check error: {e}"))
+                self._push_event(
+                    "modal",
+                    {
+                        "level": "error",
+                        "title": self._tr("检测出错", "Check Error"),
+                        "message": str(e),
+                    },
+                )
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"ok": True}
+
     def connect_easytier(self, raw_nodes: str, room_name: str, password: str | None = None) -> dict[str, Any]:
         raw_nodes = str(raw_nodes).strip()
+        if raw_nodes.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+            return self.join_vps_invite(raw_nodes)
         room_name = str(room_name).strip()
         if not room_name:
             return {
@@ -1328,6 +1563,9 @@ class GlassAppController:
             self.et_connecting = False
             self.relay_active_kind = ""
             self.relay_active_name = ""
+            self.vps_probe_status_zh = ""
+            self.vps_probe_status_en = ""
+            self.vps_probe_level = "idle"
             self.et_status_code = "disconnected"
             self.et_status_level = "idle"
         return {"ok": True}
@@ -1628,6 +1866,12 @@ class GlassApi:
     def copy_invite_code(self) -> dict[str, Any]:
         return self._ctrl.copy_invite_code()
 
+    def copy_vps_invite_code(self) -> dict[str, Any]:
+        return self._ctrl.copy_vps_invite_code()
+
+    def join_vps_invite(self, raw_link: str) -> dict[str, Any]:
+        return self._ctrl.join_vps_invite(raw_link=raw_link)
+
     def copy_text(self, text: str, log_msg: str = "") -> dict[str, Any]:
         return self._ctrl.copy_text(text=text, log_msg=log_msg)
 
@@ -1657,6 +1901,9 @@ class GlassApi:
 
     def connect_easytier(self, raw_nodes: str, room_name: str, password: str | None = None) -> dict[str, Any]:
         return self._ctrl.connect_easytier(raw_nodes=raw_nodes, room_name=room_name, password=password)
+
+    def test_vps_node(self, raw_nodes: str, password: str | None = None) -> dict[str, Any]:
+        return self._ctrl.test_vps_node(raw_nodes=raw_nodes, password=password)
 
     def disconnect_easytier(self) -> dict[str, Any]:
         return self._ctrl.disconnect_easytier()

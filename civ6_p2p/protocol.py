@@ -18,6 +18,7 @@ DEFAULT_RELAY_PORT = 38668
 DEFAULT_ROOM_KEY = "civ6"
 DEFAULT_RELAY_ROOM = "civ6-room"
 INVITE_SCHEME = "c6p2"
+VPS_INVITE_SCHEME = "c6vps"
 
 
 class MsgType(IntEnum):
@@ -225,6 +226,77 @@ class ParsedPeerInput:
     nickname: str = ""
     role: str = ""
     room_key: str | None = None
+
+
+@dataclass(frozen=True)
+class ParsedVpsInvite:
+    kind: str
+    node_address: str
+    room_name: str
+    room_key: str = DEFAULT_ROOM_KEY
+    password: str = ""
+    node_name: str = ""
+
+
+def build_vps_invite_code(
+    kind: str,
+    node_address: str,
+    room_name: str,
+    room_key: str = DEFAULT_ROOM_KEY,
+    password: str = "",
+    node_name: str = "",
+) -> str:
+    clean_kind = str(kind or "easytier").strip().lower()
+    if clean_kind not in ("easytier", "udp_relay"):
+        raise ValueError(f"不支持的 VPS 类型: {kind}")
+    addr = str(node_address or "").strip()
+    room = str(room_name or "").strip()[:64]
+    if not addr or not room:
+        raise ValueError("VPS 节点地址与房间名不能为空")
+    params: list[str] = [
+        f"node={quote(addr, safe='')}",
+        f"room={quote(room, safe='')}",
+    ]
+    rk = str(room_key or "").strip()[:64]
+    if rk:
+        params.append(f"key={quote(rk, safe='')}")
+    pw = str(password or "").strip()[:128]
+    if pw:
+        params.append(f"pw={quote(pw, safe='')}")
+    nm = str(node_name or "").strip()[:40]
+    if nm and nm != addr:
+        params.append(f"name={quote(nm, safe='')}")
+    return f"{VPS_INVITE_SCHEME}://{clean_kind}?{'&'.join(params)}"
+
+
+def parse_vps_invite_code(text: str) -> ParsedVpsInvite:
+    raw = str(text or "").strip().strip("<>\"'`")
+    if not raw:
+        raise ValueError("VPS 邀请链接不能为空")
+    if not raw.lower().startswith(f"{VPS_INVITE_SCHEME}://"):
+        raise ValueError("无效的 VPS 邀请链接（应以 c6vps:// 开头）")
+    u = urlparse(raw)
+    kind = (u.netloc or "").strip().lower()
+    if kind not in ("easytier", "udp_relay"):
+        raise ValueError(f"VPS 邀请链接中继类型无效: {kind or '空'}")
+    qs = parse_qs(u.query, keep_blank_values=True)
+    node_addr = unquote(qs.get("node", [""])[0]).strip()
+    room_name = unquote(qs.get("room", [""])[0]).strip()[:64]
+    room_key = unquote(qs.get("key", [DEFAULT_ROOM_KEY])[0]).strip()[:64] or DEFAULT_ROOM_KEY
+    password = unquote(qs.get("pw", [""])[0]).strip()[:128]
+    node_name = unquote(qs.get("name", [""])[0]).strip()[:40]
+    if not node_addr:
+        raise ValueError("VPS 邀请链接缺少节点地址 (node)")
+    if not room_name:
+        raise ValueError("VPS 邀请链接缺少房间名 (room)")
+    return ParsedVpsInvite(
+        kind=kind,
+        node_address=node_addr,
+        room_name=room_name,
+        room_key=room_key,
+        password=password,
+        node_name=node_name,
+    )
 
 
 def build_invite_code(

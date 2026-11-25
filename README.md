@@ -18,6 +18,7 @@
    - Add and persist your own custom VPS nodes:
      - **EasyTier VPS (`11010`)**: Embedded `easytier-core --no-tun` attempts P2P hole-punching first and falls back to your VPS automatically.
      - **Lightweight UDP Relay (`38668`)**: Run `python3 civ6_relay_server.py --port 38668` on any VPS with zero third-party dependencies.
+   - Share `c6vps://` room invite links (encoding node address, room name, room key, and optional password) for one-click auto-join.
    - Supports mid-game disconnect and hot-rejoin into ongoing sessions.
 3. **Strict Two-Step Workflow（严格两步式联机流程）**
    - **Step 1 · Connect & Verify**: Start local node, connect via P2P or custom VPS relay, and run the connectivity & 1150B MTU test (2+ players online required).

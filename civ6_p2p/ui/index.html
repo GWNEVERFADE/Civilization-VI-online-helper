@@ -211,8 +211,28 @@ __INLINE_CSS__
                   </div>
                 </div>
                 <div class="row-actions">
+                  <button id="btn-test-vps" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnTestVps">检测连通</button>
                   <button id="btn-et-connect" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnConnectVps">连接 VPS 房间</button>
                   <button id="btn-et-disconnect" class="glass-btn btn-soft btn-danger-soft light-interactive" type="button" disabled data-i18n="btnDisconnect">断开</button>
+                </div>
+              </div>
+
+              <div class="vps-invite-box">
+                <div class="vps-invite-grid">
+                  <div class="vps-invite-col">
+                    <label class="row-label vps-invite-label" for="input-vps-invite-code" data-i18n="lblVpsInviteCode">🔗 我的 VPS 邀请链接（含节点/房间名/密码）</label>
+                    <div class="vps-input-row">
+                      <input id="input-vps-invite-code" class="glass-input mono readonly-highlight" type="text" readonly data-i18n-placeholder="phVpsInviteCode" placeholder="选好 VPS 节点与房间名后自动生成" />
+                      <button id="btn-copy-vps-invite" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnCopyVpsInvite">复制链接</button>
+                    </div>
+                  </div>
+                  <div class="vps-invite-col">
+                    <label class="row-label vps-invite-label" for="input-vps-join-link" data-i18n="lblVpsJoinLink">🔗 通过房主 VPS 链接自动加入</label>
+                    <div class="vps-input-row">
+                      <input id="input-vps-join-link" class="glass-input mono" type="text" data-i18n-placeholder="phVpsJoinLink" placeholder="粘贴房主的 c6vps:// 链接，自动同步节点/房间/密码并连接" autocomplete="off" />
+                      <button id="btn-join-vps-link" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnJoinVpsLink">一键加入</button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -394,6 +414,7 @@ __INLINE_CSS__
           <span class="log-indicator"></span>
           <h3 class="log-title" data-i18n="logTitle">运行日志</h3>
           <span id="log-count" class="log-count mono">0</span>
+          <span class="log-interval-pill" data-i18n="logInterval">每 10s 更新</span>
         </div>
         <div class="log-actions">
           <button id="btn-toggle-log" class="glass-btn btn-xs btn-soft light-interactive" type="button">收起</button>
