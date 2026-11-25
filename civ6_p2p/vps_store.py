@@ -21,6 +21,7 @@ class VpsNodeItem:
     name: str
     address: str
     kind: str = "easytier"
+    password: str = ""
 
     def kind_label(self) -> str:
         return "UDP中继" if self.kind == "udp_relay" else "EasyTier"
@@ -33,6 +34,7 @@ class VpsNodeItem:
         d = asdict(self)
         d["kind_label"] = self.kind_label()
         d["label"] = self.display_label()
+        d["has_password"] = bool(self.password)
         return d
 
 
@@ -76,29 +78,36 @@ def normalize_vps_node_address(address: str, kind: str = "easytier") -> str:
     return ", ".join(normalized)
 
 
-def resolve_relay_input(
+def resolve_relay_node(
     raw_input: str, saved_nodes: list[VpsNodeItem]
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, str]:
     text = str(raw_input).strip()
     if not text:
         raise ValueError("请先添加或输入自建 VPS 节点地址（例如 tcp://你的VPS:11010 或 relay://你的VPS:38668）。")
 
     for node in saved_nodes:
         if text in (node.id, node.display_label(), node.address):
-            return node.kind, node.address, node.name or node.address
+            return node.kind, node.address, node.name or node.address, node.password
 
     clean = text.split("  [", 1)[0].strip() if "  [" in text else text
     for node in saved_nodes:
         if clean == node.address:
-            return node.kind, node.address, node.name or node.address
+            return node.kind, node.address, node.name or node.address, node.password
 
     low = clean.lower()
     if low.startswith("relay://") or low.startswith("civ6://"):
         norm = normalize_vps_node_address(clean, kind="udp_relay")
-        return "udp_relay", norm, norm
+        return "udp_relay", norm, norm, ""
 
     norm = normalize_vps_node_address(clean, kind="easytier")
-    return "easytier", norm, norm
+    return "easytier", norm, norm, ""
+
+
+def resolve_relay_input(
+    raw_input: str, saved_nodes: list[VpsNodeItem]
+) -> tuple[str, str, str]:
+    kind, norm, name, _pw = resolve_relay_node(raw_input, saved_nodes)
+    return kind, norm, name
 
 
 class VpsNodeStore:
@@ -123,7 +132,8 @@ class VpsNodeStore:
                             continue
                         nid = str(entry.get("id", "")).strip() or secrets.token_hex(6)
                         name = str(entry.get("name", "")).strip()[:40]
-                        items.append(VpsNodeItem(id=nid, name=name, address=addr, kind=kind))
+                        pw = str(entry.get("password", "")).strip()[:128]
+                        items.append(VpsNodeItem(id=nid, name=name, address=addr, kind=kind, password=pw))
         except Exception:
             items = []
         self._nodes = items
@@ -132,10 +142,12 @@ class VpsNodeStore:
     def _save(self) -> None:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            data = [
-                {"id": n.id, "name": n.name, "address": n.address, "kind": n.kind}
-                for n in self._nodes
-            ]
+            data = []
+            for n in self._nodes:
+                row = {"id": n.id, "name": n.name, "address": n.address, "kind": n.kind}
+                if n.password:
+                    row["password"] = n.password
+                data.append(row)
             self.path.write_text(
                 json.dumps(data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -146,12 +158,13 @@ class VpsNodeStore:
     def list_nodes(self) -> list[VpsNodeItem]:
         return list(self._nodes)
 
-    def add_node(self, name: str, address: str, kind: str = "easytier") -> VpsNodeItem:
+    def add_node(self, name: str, address: str, kind: str = "easytier", password: str = "") -> VpsNodeItem:
         clean_kind = str(kind).strip().lower()
         if clean_kind not in VALID_VPS_KINDS:
             raise ValueError("节点类型必须是 EasyTier 或 UDP 中继")
         norm_addr = normalize_vps_node_address(address, kind=clean_kind)
         clean_name = str(name).strip()[:40]
+        clean_pw = str(password or "").strip()[:128]
         if not clean_name:
             host_hint = norm_addr.split(",", 1)[0].strip()
             if "://" in host_hint:
@@ -161,6 +174,7 @@ class VpsNodeStore:
         for existing in self._nodes:
             if existing.kind == clean_kind and existing.address.lower() == norm_addr.lower():
                 existing.name = clean_name
+                existing.password = clean_pw
                 self._save()
                 return existing
 
@@ -169,6 +183,7 @@ class VpsNodeStore:
             name=clean_name,
             address=norm_addr,
             kind=clean_kind,
+            password=clean_pw,
         )
         self._nodes.insert(0, item)
         self._save()

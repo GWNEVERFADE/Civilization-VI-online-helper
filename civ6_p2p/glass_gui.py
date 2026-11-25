@@ -25,7 +25,7 @@ from .protocol import (
     build_invite_code,
     parse_peer_input,
 )
-from .vps_store import UiPrefsStore, VpsNodeStore, resolve_relay_input
+from .vps_store import UiPrefsStore, VpsNodeStore, resolve_relay_node
 from .win_civ6 import Civ6LocalState, inspect_civ6_state
 
 
@@ -347,6 +347,7 @@ class GlassAppController:
         saved_nodes = self._vps_store.list_nodes()
         self.et_node: str = saved_nodes[0].display_label() if saved_nodes else ""
         self.et_room: str = DEFAULT_RELAY_ROOM
+        self.et_password: str = saved_nodes[0].password if saved_nodes else ""
         self.et_status_code: str = "idle"
         self.et_status_level: str = "idle"
         self.et_connecting: bool = False
@@ -599,7 +600,13 @@ class GlassAppController:
                         )
                         et_level = "connecting"
                 elif self.relay_active_kind == "udp_relay" and rst.enabled:
-                    if rst.connected:
+                    if rst.auth_error:
+                        et_status = self._tr(
+                            f"VPS UDP 中继密码错误{node_tag}，请检查「VPS 密码」后重新连接",
+                            f"VPS UDP Relay auth failed{node_tag}: check VPS password and retry",
+                        )
+                        et_level = "error"
+                    elif rst.connected:
                         et_status = self._tr(
                             f"VPS UDP 中继已连接{node_tag} · 房间 [{rst.room_id}] 当前 {rst.room_members} 人在线",
                             f"VPS UDP Relay Connected{node_tag} · Room [{rst.room_id}] {rst.room_members} online",
@@ -798,6 +805,7 @@ class GlassAppController:
                 "vps_nodes": vps_nodes,
                 "et_node": self.et_node,
                 "et_room": self.et_room,
+                "et_password": self.et_password,
                 "et_connected_or_running": relay_connected_or_running,
                 "et_connecting": self.et_connecting,
                 "et_status": et_status,
@@ -880,9 +888,17 @@ class GlassAppController:
                 or self.relay_active_kind == "udp_relay"
             )
             if "et_node" in fields and not relay_busy:
-                self.et_node = str(fields["et_node"])
+                new_et_node = str(fields["et_node"])
+                self.et_node = new_et_node
+                if "et_password" not in fields:
+                    for n in self._vps_store.list_nodes():
+                        if new_et_node.strip() in (n.id, n.display_label(), n.address):
+                            self.et_password = n.password
+                            break
             if "et_room" in fields and not relay_busy:
                 self.et_room = str(fields["et_room"])[:64]
+            if "et_password" in fields and not relay_busy:
+                self.et_password = str(fields["et_password"]).strip()[:128]
             if "target_host_key" in fields and not self._has_active_bridge():
                 self.target_host_key = str(fields["target_host_key"])
 
@@ -1011,10 +1027,10 @@ class GlassAppController:
             self.et_status_level = "idle"
         return {"ok": True}
 
-    def add_vps_node(self, name: str, address: str, kind: str = "easytier") -> dict[str, Any]:
+    def add_vps_node(self, name: str, address: str, kind: str = "easytier", password: str = "") -> dict[str, Any]:
         with self._lock:
             try:
-                item = self._vps_store.add_node(name=name, address=address, kind=kind)
+                item = self._vps_store.add_node(name=name, address=address, kind=kind, password=password)
             except ValueError as e:
                 return {
                     "ok": False,
@@ -1022,14 +1038,16 @@ class GlassAppController:
                     "message": str(e),
                 }
             self.et_node = item.display_label()
+            self.et_password = item.password
             node_dict = item.to_dict()
             if self._lang == "en":
                 node_dict["kind_label"] = "UDP Relay" if item.kind == "udp_relay" else "EasyTier"
+        pw_note = self._tr(" · 已设密码", " · password set") if item.password else ""
         self._append_log(
             "ok",
             self._tr(
-                f"已保存自定义 VPS 节点: {item.name} ({item.kind_label()} · {item.address})",
-                f"Saved custom VPS node: {item.name} ({node_dict['kind_label']} · {item.address})",
+                f"已保存自定义 VPS 节点: {item.name} ({item.kind_label()} · {item.address}{pw_note})",
+                f"Saved custom VPS node: {item.name} ({node_dict['kind_label']} · {item.address}{pw_note})",
             ),
         )
         return {"ok": True, "node": node_dict}
@@ -1042,6 +1060,7 @@ class GlassAppController:
                 remaining = self._vps_store.list_nodes()
                 if existing and self.et_node == existing.display_label():
                     self.et_node = remaining[0].display_label() if remaining else ""
+                    self.et_password = remaining[0].password if remaining else ""
         if removed and existing:
             self._append_log(
                 "info",
@@ -1174,7 +1193,7 @@ class GlassAppController:
             )
             return {"ok": True, "peer_key": peer.peer_key}
 
-    def connect_easytier(self, raw_nodes: str, room_name: str) -> dict[str, Any]:
+    def connect_easytier(self, raw_nodes: str, room_name: str, password: str | None = None) -> dict[str, Any]:
         raw_nodes = str(raw_nodes).strip()
         room_name = str(room_name).strip()
         if not room_name:
@@ -1190,7 +1209,7 @@ class GlassAppController:
         with self._lock:
             saved_nodes = self._vps_store.list_nodes()
         try:
-            kind, norm_addr, display_name = resolve_relay_input(raw_nodes, saved_nodes)
+            kind, norm_addr, display_name, saved_pw = resolve_relay_node(raw_nodes, saved_nodes)
         except ValueError as e:
             return {
                 "ok": False,
@@ -1199,8 +1218,13 @@ class GlassAppController:
             }
 
         with self._lock:
+            if password is not None:
+                vps_pw = str(password).strip()[:128]
+            else:
+                vps_pw = self.et_password.strip() or saved_pw
             self.et_node = raw_nodes
             self.et_room = room_name
+            self.et_password = vps_pw
             if not (self.p2p_node and self.p2p_node.running):
                 start_res = self.start_node()
                 if not start_res.get("ok"):
@@ -1216,6 +1240,7 @@ class GlassAppController:
                         room_name,
                         default_port=DEFAULT_RELAY_PORT,
                         transport_name="VPS UDP 中继",
+                        relay_password=vps_pw,
                     )
                 except Exception as e:
                     return {
@@ -1232,6 +1257,7 @@ class GlassAppController:
             peer_uris = parse_easytier_peers(norm_addr)
             role = self.role
             room_key = self.room_key.strip()
+            et_secret = vps_pw or room_key
             nick = self.nickname.strip() or "Player"
             self.et_connecting = True
             self.relay_active_kind = "easytier"
@@ -1246,7 +1272,7 @@ class GlassAppController:
                 session = EasyTierSession(
                     role=role,
                     room_name=room_name,
-                    room_secret=room_key,
+                    room_secret=et_secret,
                     peer_uris=peer_uris,
                     hostname=nick,
                     log_cb=self._append_log,
@@ -1623,14 +1649,14 @@ class GlassApi:
     def add_peer(self, raw_input: str, force_sync_key: bool = False) -> dict[str, Any]:
         return self._ctrl.add_peer(raw_input=raw_input, force_sync_key=bool(force_sync_key))
 
-    def add_vps_node(self, name: str = "", address: str = "", kind: str = "easytier") -> dict[str, Any]:
-        return self._ctrl.add_vps_node(name=name, address=address, kind=kind)
+    def add_vps_node(self, name: str = "", address: str = "", kind: str = "easytier", password: str = "") -> dict[str, Any]:
+        return self._ctrl.add_vps_node(name=name, address=address, kind=kind, password=password)
 
     def remove_vps_node(self, node_id: str) -> dict[str, Any]:
         return self._ctrl.remove_vps_node(node_id=node_id)
 
-    def connect_easytier(self, raw_nodes: str, room_name: str) -> dict[str, Any]:
-        return self._ctrl.connect_easytier(raw_nodes=raw_nodes, room_name=room_name)
+    def connect_easytier(self, raw_nodes: str, room_name: str, password: str | None = None) -> dict[str, Any]:
+        return self._ctrl.connect_easytier(raw_nodes=raw_nodes, room_name=room_name, password=password)
 
     def disconnect_easytier(self) -> dict[str, Any]:
         return self._ctrl.disconnect_easytier()

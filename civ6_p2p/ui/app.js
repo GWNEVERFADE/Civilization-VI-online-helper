@@ -57,6 +57,9 @@
       btnAddVps: "+ 添加 VPS",
       titleAddVps: "添加并保存自定义 VPS 节点",
       lblRoomName: "房间名",
+      lblVpsPassword: "连接密码（选填）",
+      phVpsPassword: "无密码留空",
+      togglePwTitle: "显示 / 隐藏密码",
       btnConnectVps: "连接 VPS 房间",
       btnConnectVpsBusy: "正在连接 VPS...",
       btnDisconnect: "断开",
@@ -125,6 +128,11 @@
       phVpsAddrUDP: "1.2.3.4:38668 或 relay.example.com:38668 或 [240e::1]:38668",
       hintVpsET: "支持 <code>tcp://ip:11010</code>、<code>udp://ip:11010</code>、<code>ip:11010</code>，或多个备用 VPS 用逗号分隔；未填端口默认 11010。",
       hintVpsUDP: "适配 <code>civ6_relay_server.py</code> 轻量 UDP 中继，支持 IPv4 / IPv6 / 域名，未填端口默认 38668。",
+      vpsPwLabel: "VPS 连接密码（选填）",
+      phVpsModalPw: "无密码留空",
+      hintVpsPwET: "若 VPS 启用了 <code>--private-mode</code> / <code>--network-secret</code> 密码保护请填写；留空默认使用上方房间口令。",
+      hintVpsPwUDP: "若 <code>civ6_relay_server.py</code> 启动时设置了 <code>--password</code> 请填写；无密码留空即可。",
+      vpsLockBadge: "密码",
       vpsEmptyDrop: "尚未保存自定义 VPS 节点，请先添加您的自建节点",
       vpsEmptyDropBtn: "+ 立即添加 VPS 节点",
       vpsDeleteTitle: "删除该自定义 VPS 节点",
@@ -198,25 +206,25 @@
             </div>
           </div>
           <div class="guide-cmd-box">
-            <div class="guide-cmd-label">Docker 一键部署命令</div>
+            <div class="guide-cmd-label">Docker 一键部署命令（带密码保护可选加 --network-name civ6-room --network-secret 你的密码 --private-mode true）</div>
             <div class="guide-cmd-row">
               <code class="guide-cmd-code">docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010</code>
               <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010">复制</button>
             </div>
           </div>
-          <p class="guide-desc">部署后点击 <strong>+ 添加 VPS</strong> → 类型选 <code>EasyTier VPS (11010)</code> → 地址填写 <code>tcp://你的VPS公网IP:11010</code>（也支持 <code>udp://</code> 或逗号分隔多个备用节点）。</p>
+          <p class="guide-desc">部署后点击 <strong>+ 添加 VPS</strong> → 类型选 <code>EasyTier VPS (11010)</code> → 地址填写 <code>tcp://你的VPS公网IP:11010</code>；若 VPS 启用了私有密码，将「房间名」设为与 <code>--network-name</code> 一致，并在「连接密码（选填）」中填入 <code>--network-secret</code>。</p>
         </div>
         <div class="guide-block">
           <h4 class="guide-h4">方案二 · 轻量 UDP 中继（civ6_relay_server，默认端口 38668）</h4>
           <p class="guide-desc">零第三方依赖，仅需 Python 3 即可在 VPS 运行，同时支持 IPv4 / IPv6 客户端混合接入。请在云服务器安全组放行 <code>UDP 38668</code>。</p>
           <div class="guide-cmd-box">
-            <div class="guide-cmd-label">上传 civ6_relay_server.py 与 civ6_p2p 目录到 VPS 后运行</div>
+            <div class="guide-cmd-label">上传 civ6_relay_server.py 与 civ6_p2p 目录到 VPS 后运行（可选 --password 启用密码认证）</div>
             <div class="guide-cmd-row">
-              <code class="guide-cmd-code">python3 civ6_relay_server.py --port 38668</code>
-              <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="python3 civ6_relay_server.py --port 38668">复制</button>
+              <code class="guide-cmd-code">python3 civ6_relay_server.py --port 38668 --password 你的密码</code>
+              <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="python3 civ6_relay_server.py --port 38668 --password 你的密码">复制</button>
             </div>
           </div>
-          <p class="guide-desc">部署后点击 <strong>+ 添加 VPS</strong> → 类型选 <code>轻量 UDP 中继 (38668)</code> → 地址填写 <code>你的VPS公网IP:38668</code>（支持域名或 <code>[IPv6]:38668</code>）。</p>
+          <p class="guide-desc">无密码可省略 <code>--password</code>。部署后点击 <strong>+ 添加 VPS</strong> → 选 <code>轻量 UDP 中继 (38668)</code> → 填 <code>你的VPS公网IP:38668</code> 与可选密码。</p>
         </div>
         <div class="guide-block">
           <h4 class="guide-h4">客户端连接步骤</h4>
@@ -283,6 +291,9 @@
       btnAddVps: "+ Add VPS",
       titleAddVps: "Add and save a custom VPS relay node",
       lblRoomName: "Room Name",
+      lblVpsPassword: "Password (Opt.)",
+      phVpsPassword: "Optional",
+      togglePwTitle: "Show / Hide Password",
       btnConnectVps: "Connect VPS",
       btnConnectVpsBusy: "Connecting...",
       btnDisconnect: "Disconnect",
@@ -351,6 +362,11 @@
       phVpsAddrUDP: "1.2.3.4:38668 or relay.example.com:38668 or [240e::1]:38668",
       hintVpsET: "Supports <code>tcp://ip:11010</code>, <code>udp://ip:11010</code>, <code>ip:11010</code>, or comma-separated nodes. Default port is 11010.",
       hintVpsUDP: "For <code>civ6_relay_server.py</code> lightweight UDP relay. Supports IPv4, IPv6, and domains. Default port is 38668.",
+      vpsPwLabel: "VPS Password (Optional)",
+      phVpsModalPw: "Leave blank if no password",
+      hintVpsPwET: "Enter if your VPS uses <code>--private-mode</code> / <code>--network-secret</code>; leave blank to use Room Key.",
+      hintVpsPwUDP: "Enter if <code>civ6_relay_server.py</code> uses <code>--password</code>; leave blank if none.",
+      vpsLockBadge: "Auth",
       vpsEmptyDrop: "No custom VPS nodes saved yet. Add your own VPS node first.",
       vpsEmptyDropBtn: "+ Add VPS Node",
       vpsDeleteTitle: "Delete this saved VPS node",
@@ -424,25 +440,25 @@
             </div>
           </div>
           <div class="guide-cmd-box">
-            <div class="guide-cmd-label">Docker one-line deployment</div>
+            <div class="guide-cmd-label">Docker one-line deployment (optional auth: add --network-name civ6-room --network-secret YOUR_PASS --private-mode true)</div>
             <div class="guide-cmd-row">
               <code class="guide-cmd-code">docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010</code>
               <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010">Copy</button>
             </div>
           </div>
-          <p class="guide-desc">Then click <strong>+ Add VPS</strong> → choose <code>EasyTier VPS (11010)</code> → enter <code>tcp://YOUR_VPS_IP:11010</code> (or <code>udp://</code> / comma-separated failover nodes).</p>
+          <p class="guide-desc">Then click <strong>+ Add VPS</strong> → choose <code>EasyTier VPS (11010)</code> → enter <code>tcp://YOUR_VPS_IP:11010</code>. If private mode is enabled, match Room Name with <code>--network-name</code> and enter <code>--network-secret</code> in the optional password field.</p>
         </div>
         <div class="guide-block">
           <h4 class="guide-h4">Option 2 · Lightweight UDP Relay (civ6_relay_server, Port 38668)</h4>
           <p class="guide-desc">Zero third-party dependencies (Python 3 only) with dual-stack IPv4/IPv6 client support. Open <code>UDP 38668</code> on your VPS firewall.</p>
           <div class="guide-cmd-box">
-            <div class="guide-cmd-label">Upload civ6_relay_server.py and civ6_p2p/ to your VPS and run</div>
+            <div class="guide-cmd-label">Upload civ6_relay_server.py and civ6_p2p/ to your VPS and run (optional --password for auth)</div>
             <div class="guide-cmd-row">
-              <code class="guide-cmd-code">python3 civ6_relay_server.py --port 38668</code>
-              <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="python3 civ6_relay_server.py --port 38668">Copy</button>
+              <code class="guide-cmd-code">python3 civ6_relay_server.py --port 38668 --password YOUR_PASS</code>
+              <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="python3 civ6_relay_server.py --port 38668 --password YOUR_PASS">Copy</button>
             </div>
           </div>
-          <p class="guide-desc">Then click <strong>+ Add VPS</strong> → choose <code>Lightweight UDP Relay (38668)</code> → enter <code>YOUR_VPS_IP:38668</code> (or domain / <code>[IPv6]:38668</code>).</p>
+          <p class="guide-desc">Omit <code>--password</code> for open mode. Then click <strong>+ Add VPS</strong> → choose <code>Lightweight UDP Relay (38668)</code> → enter <code>YOUR_VPS_IP:38668</code> and optional password.</p>
         </div>
         <div class="guide-block">
           <h4 class="guide-h4">Client Connection Steps</h4>
@@ -823,16 +839,20 @@
           const mainBtn = document.createElement("button");
           mainBtn.type = "button";
           mainBtn.className = "combo-vps-main";
+          const lockHtml = node.has_password
+            ? `<span class="vps-lock-pill">🔒 ${escapeHtml(t("vpsLockBadge"))}</span>`
+            : "";
           mainBtn.innerHTML =
             `<span class="combo-vps-top">` +
             `<span class="combo-vps-name">${escapeHtml(node.name || node.address)}</span>` +
             `<span class="vps-kind-pill ${escapeHtml(node.kind || "easytier")}">${escapeHtml(node.kind_label || "EasyTier")}</span>` +
+            lockHtml +
             `</span>` +
             `<span class="combo-vps-addr">${escapeHtml(node.address)}</span>`;
           mainBtn.addEventListener("click", () => {
             input.value = node.label;
             close();
-            onSelect(node.label);
+            onSelect(node);
           });
 
           const delBtn = document.createElement("button");
@@ -875,18 +895,25 @@
 
     const addrInput = $("vps-input-address");
     const hint = $("vps-addr-hint");
+    const pwHint = $("vps-pw-hint");
     if (vpsDraftKind === "udp_relay") {
       addrInput.placeholder = t("phVpsAddrUDP");
       hint.innerHTML = t("hintVpsUDP");
+      if (pwHint) pwHint.innerHTML = t("hintVpsPwUDP");
     } else {
       addrInput.placeholder = t("phVpsAddrET");
       hint.innerHTML = t("hintVpsET");
+      if (pwHint) pwHint.innerHTML = t("hintVpsPwET");
     }
   }
 
   function openAddVpsModal() {
     $("vps-input-name").value = "";
     $("vps-input-address").value = "";
+    const pwEl = $("vps-input-password");
+    pwEl.value = "";
+    pwEl.type = "password";
+    $("btn-toggle-vps-modal-pw").classList.remove("is-shown");
     const errEl = $("vps-form-error");
     errEl.hidden = true;
     errEl.textContent = "";
@@ -906,10 +933,11 @@
   async function saveCustomVpsNode() {
     const name = $("vps-input-name").value.trim();
     const address = $("vps-input-address").value.trim();
+    const password = $("vps-input-password").value.trim();
     const errEl = $("vps-form-error");
     errEl.hidden = true;
 
-    const res = await callApi("add_vps_node", name, address, vpsDraftKind);
+    const res = await callApi("add_vps_node", name, address, vpsDraftKind, password);
     if (!res || !res.ok) {
       errEl.textContent = (res && res.message) || t("vpsInvalidAddr");
       errEl.hidden = false;
@@ -919,12 +947,25 @@
     closeAddVpsModal();
     if (res.node && res.node.label) {
       $("input-et-node").value = res.node.label;
+      $("input-et-password").value = res.node.password || "";
     }
     showToast(t("toastVpsSaved", res.node ? res.node.name : address), "ok");
     await refreshState();
   }
 
+  function bindPwToggle(btnId, inputId) {
+    const btn = $(btnId);
+    const inp = $(inputId);
+    if (!btn || !inp) return;
+    btn.addEventListener("click", () => {
+      const show = inp.type === "password";
+      inp.type = show ? "text" : "password";
+      btn.classList.toggle("is-shown", show);
+    });
+  }
+
   function initAddVpsModalEvents() {
+    bindPwToggle("btn-toggle-vps-modal-pw", "vps-input-password");
     $("vps-kind-seg").querySelectorAll(".vps-kind-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         vpsDraftKind = btn.dataset.kind;
@@ -936,12 +977,14 @@
     $("vps-modal-backdrop").addEventListener("click", (e) => {
       if (e.target === $("vps-modal-backdrop")) closeAddVpsModal();
     });
-    $("vps-input-address").addEventListener("keydown", (e) => {
+    const onEnterSave = (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         void saveCustomVpsNode();
       }
-    });
+    };
+    $("vps-input-address").addEventListener("keydown", onEnterSave);
+    $("vps-input-password").addEventListener("keydown", onEnterSave);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !$("vps-modal-backdrop").hidden) {
         closeAddVpsModal();
@@ -1218,12 +1261,14 @@
       $("input-adv-addr").value = data.selected_address;
       $("input-et-node").value = data.et_node;
       $("input-et-room").value = data.et_room;
+      $("input-et-password").value = data.et_password || "";
     } else {
       setInputIfUnfocused($("input-port"), data.port_text);
       setInputIfUnfocused($("input-room-key"), data.room_key);
       setInputIfUnfocused($("input-adv-addr"), data.selected_address);
       setInputIfUnfocused($("input-et-node"), data.et_node);
       setInputIfUnfocused($("input-et-room"), data.et_room);
+      setInputIfUnfocused($("input-et-password"), data.et_password || "");
     }
 
     renderBadges(data);
@@ -1257,6 +1302,7 @@
     vpsComboCtrl.setDisabled(data.et_connected_or_running);
     $("btn-open-add-vps").disabled = data.et_connected_or_running;
     $("input-et-room").disabled = data.et_connected_or_running;
+    $("input-et-password").disabled = data.et_connected_or_running;
     $("btn-et-connect").disabled = data.et_connected_or_running;
     $("btn-et-connect").textContent = data.et_connecting ? t("btnConnectVpsBusy") : t("btnConnectVps");
     $("btn-et-disconnect").disabled = !data.et_connected_or_running;
@@ -1468,7 +1514,12 @@
       openAddVpsModal();
       return;
     }
-    const res = await callApi("connect_easytier", rawNode, $("input-et-room").value);
+    const res = await callApi(
+      "connect_easytier",
+      rawNode,
+      $("input-et-room").value,
+      $("input-et-password").value
+    );
     if (res && !res.ok) {
       await showModal({ title: res.title || t("modalDefaultTitle"), message: res.message || "", level: "error" });
     } else if (res && res.ok) {
@@ -1576,6 +1627,8 @@
     syncField($("input-adv-addr"), "selected_address");
     syncField($("input-et-node"), "et_node");
     syncField($("input-et-room"), "et_room");
+    syncField($("input-et-password"), "et_password");
+    bindPwToggle("btn-toggle-et-pw", "input-et-password");
 
     $("btn-start-node").addEventListener("click", handleStartNode);
     $("btn-stop-node").addEventListener("click", handleStopNode);
@@ -1641,8 +1694,10 @@
       await refreshState();
     });
     vpsComboCtrl = initVpsCombo("combo-et-node", "input-et-node", {
-      onSelect: async (val) => {
-        await callApi("update_form", { et_node: val });
+      onSelect: async (node) => {
+        const pw = (node && node.password) || "";
+        $("input-et-password").value = pw;
+        await callApi("update_form", { et_node: node.label, et_password: pw });
         await refreshState();
       },
       onDelete: async (node) => {

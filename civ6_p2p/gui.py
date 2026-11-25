@@ -22,7 +22,7 @@ from .protocol import (
     build_invite_code,
     parse_peer_input,
 )
-from .vps_store import VpsNodeStore, resolve_relay_input
+from .vps_store import VpsNodeStore, resolve_relay_node
 from .win_civ6 import Civ6LocalState, inspect_civ6_state
 
 
@@ -78,9 +78,11 @@ class Civ6P2PApp(tk.Tk):
 
         self._vps_store = VpsNodeStore()
         self._vps_label_to_id: dict[str, str] = {}
+        self._vps_label_to_pw: dict[str, str] = {}
         self._et_preset_labels: list[str] = []
         self.et_node_var = tk.StringVar(value="")
         self.et_room_var = tk.StringVar(value=DEFAULT_RELAY_ROOM)
+        self.et_password_var = tk.StringVar(value="")
         self.et_status_var = tk.StringVar(value="⚪ 未连接 VPS 中继（请先添加或输入自建 VPS 节点）")
         self._relay_active_kind: str = ""
 
@@ -329,17 +331,23 @@ class Civ6P2PApp(tk.Tk):
         self.panel_relay = ttk.Frame(self.mode_container, style="SubCard.TFrame")
         self.panel_relay.columnconfigure(1, weight=2)
         self.panel_relay.columnconfigure(3, weight=1)
+        self.panel_relay.columnconfigure(5, weight=1)
 
         ttk.Label(self.panel_relay, text="VPS 节点:", style="SubBody.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=3)
-        self.et_node_combo = ttk.Combobox(self.panel_relay, textvariable=self.et_node_var, values=self._et_preset_labels, width=38)
+        self.et_node_combo = ttk.Combobox(self.panel_relay, textvariable=self.et_node_var, values=self._et_preset_labels, width=32)
         self.et_node_combo.grid(row=0, column=1, sticky="ew", padx=(0, 6), pady=3)
+        self.et_node_combo.bind("<<ComboboxSelected>>", self._on_vps_selected)
 
         ttk.Label(self.panel_relay, text="房间名:", style="SubBody.TLabel").grid(row=0, column=2, sticky="w", padx=(0, 6), pady=3)
-        self.et_room_entry = ttk.Entry(self.panel_relay, textvariable=self.et_room_var, width=14)
-        self.et_room_entry.grid(row=0, column=3, sticky="ew", padx=(0, 8), pady=3)
+        self.et_room_entry = ttk.Entry(self.panel_relay, textvariable=self.et_room_var, width=12)
+        self.et_room_entry.grid(row=0, column=3, sticky="ew", padx=(0, 6), pady=3)
+
+        ttk.Label(self.panel_relay, text="密码(选填):", style="SubBody.TLabel").grid(row=0, column=4, sticky="w", padx=(0, 6), pady=3)
+        self.et_pw_entry = ttk.Entry(self.panel_relay, textvariable=self.et_password_var, width=12, show="*")
+        self.et_pw_entry.grid(row=0, column=5, sticky="ew", padx=(0, 8), pady=3)
 
         r_act = ttk.Frame(self.panel_relay, style="SubCard.TFrame")
-        r_act.grid(row=0, column=4, sticky="e", pady=3)
+        r_act.grid(row=0, column=6, sticky="e", pady=3)
         self.et_add_vps_btn = ttk.Button(r_act, text="+ 添加VPS", style="Soft.TButton", command=self._prompt_add_vps_node)
         self.et_add_vps_btn.pack(side="left", padx=(0, 6))
         self.et_del_vps_btn = ttk.Button(r_act, text="删除", style="Soft.TButton", command=self._delete_selected_vps_node)
@@ -350,10 +358,10 @@ class Civ6P2PApp(tk.Tk):
         self.et_disc_btn.pack(side="left")
 
         ttk.Label(self.panel_relay, textvariable=self.et_status_var, style="SubMono.TLabel").grid(
-            row=1, column=0, columnspan=5, sticky="w", pady=(5, 3)
+            row=1, column=0, columnspan=7, sticky="w", pady=(5, 3)
         )
         guide_bar = ttk.Frame(self.panel_relay, style="SubCard.TFrame")
-        guide_bar.grid(row=2, column=0, columnspan=5, sticky="w", pady=(2, 0))
+        guide_bar.grid(row=2, column=0, columnspan=7, sticky="w", pady=(2, 0))
         ttk.Button(guide_bar, text="P2P 使用说明", style="Soft.TButton", command=self._show_p2p_guide).pack(side="left", padx=(0, 6))
         ttk.Button(guide_bar, text="VPS 使用说明", style="Soft.TButton", command=self._show_vps_guide).pack(side="left")
         self._reload_vps_choices()
@@ -698,6 +706,7 @@ class Civ6P2PApp(tk.Tk):
         self.et_disc_btn.configure(state="disabled")
         self.et_node_combo.configure(state="normal")
         self.et_room_entry.configure(state="normal")
+        self.et_pw_entry.configure(state="normal")
         self._relay_active_kind = ""
         self.et_status_var.set("⚪ 未连接 VPS 中继（请先添加或输入自建 VPS 节点）")
         self._update_invite_code()
@@ -767,16 +776,24 @@ class Civ6P2PApp(tk.Tk):
             "连接步骤：双方选中同一 VPS 节点并填相同「房间名」和「房间口令」，点击「连接 VPS 房间」，在线后测试连接即可解锁第二步。",
         )
 
+    def _on_vps_selected(self, _event=None) -> None:
+        cur = self.et_node_var.get().strip()
+        if cur in self._vps_label_to_pw:
+            self.et_password_var.set(self._vps_label_to_pw[cur])
+
     def _reload_vps_choices(self, select_label: str | None = None) -> None:
         nodes = self._vps_store.list_nodes()
         self._vps_label_to_id = {n.display_label(): n.id for n in nodes}
+        self._vps_label_to_pw = {n.display_label(): n.password for n in nodes}
         labels = [n.display_label() for n in nodes]
         self._et_preset_labels = labels
         self.et_node_combo["values"] = labels
         if select_label is not None:
             self.et_node_var.set(select_label)
+            self.et_password_var.set(self._vps_label_to_pw.get(select_label, ""))
         elif not self.et_node_var.get().strip() and labels:
             self.et_node_var.set(labels[0])
+            self.et_password_var.set(self._vps_label_to_pw.get(labels[0], ""))
 
     def _prompt_add_vps_node(self) -> None:
         dlg = tk.Toplevel(self)
@@ -791,6 +808,7 @@ class Civ6P2PApp(tk.Tk):
         kind_var = tk.StringVar(value="easytier")
         name_var = tk.StringVar()
         addr_var = tk.StringVar()
+        pw_var = tk.StringVar()
 
         ttk.Label(frm, text="节点类型:").grid(row=0, column=0, sticky="w", pady=4)
         kbox = ttk.Frame(frm)
@@ -806,9 +824,12 @@ class Civ6P2PApp(tk.Tk):
         addr_ent.grid(row=2, column=1, sticky="ew", pady=4)
         addr_ent.focus_set()
 
+        ttk.Label(frm, text="连接密码(选填):").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Entry(frm, textvariable=pw_var, width=36, show="*").grid(row=3, column=1, sticky="ew", pady=4)
+
         def save() -> None:
             try:
-                item = self._vps_store.add_node(name_var.get(), addr_var.get(), kind_var.get())
+                item = self._vps_store.add_node(name_var.get(), addr_var.get(), kind_var.get(), pw_var.get())
             except ValueError as e:
                 messagebox.showerror("VPS 节点格式错误", str(e), parent=dlg)
                 return
@@ -817,7 +838,7 @@ class Civ6P2PApp(tk.Tk):
             dlg.destroy()
 
         btns = ttk.Frame(frm)
-        btns.grid(row=3, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        btns.grid(row=4, column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(btns, text="取消", command=dlg.destroy).pack(side="left", padx=(0, 6))
         ttk.Button(btns, text="保存节点", command=save).pack(side="left")
 
@@ -844,10 +865,12 @@ class Civ6P2PApp(tk.Tk):
             messagebox.showerror("参数错误", "请填写中继房间名（房主与好友填相同的房间名与房间口令）。")
             return
         try:
-            kind, norm_addr, display_name = resolve_relay_input(raw_nodes, self._vps_store.list_nodes())
+            kind, norm_addr, display_name, saved_pw = resolve_relay_node(raw_nodes, self._vps_store.list_nodes())
         except ValueError as e:
             messagebox.showerror("VPS 节点格式错误", str(e))
             return
+
+        vps_pw = self.et_password_var.get().strip() or saved_pw
 
         if not (self.p2p_node and self.p2p_node.running):
             self._start_p2p_node()
@@ -862,6 +885,7 @@ class Civ6P2PApp(tk.Tk):
                     room_name,
                     default_port=DEFAULT_RELAY_PORT,
                     transport_name="VPS UDP 中继",
+                    relay_password=vps_pw,
                 )
             except Exception as e:
                 messagebox.showerror("连接 VPS UDP 中继失败", str(e))
@@ -871,18 +895,21 @@ class Civ6P2PApp(tk.Tk):
             self.et_disc_btn.configure(state="normal")
             self.et_node_combo.configure(state="disabled")
             self.et_room_entry.configure(state="disabled")
+            self.et_pw_entry.configure(state="disabled")
             self.et_status_var.set(f"🟡 正在连接 VPS UDP 中继 [{display_name}]（房间 [{room_name}]）...")
             return
 
         peer_uris = parse_easytier_peers(norm_addr)
         role = self.role_var.get()
         room_key = self.room_key_var.get().strip()
+        et_secret = vps_pw or room_key
         nick = self.nickname_var.get().strip() or "Player"
 
         self._relay_active_kind = "easytier"
         self.et_conn_btn.configure(state="disabled")
         self.et_node_combo.configure(state="disabled")
         self.et_room_entry.configure(state="disabled")
+        self.et_pw_entry.configure(state="disabled")
         self.rb_host.configure(state="disabled")
         self.rb_client.configure(state="disabled")
         self.et_status_var.set(f"🟡 正在连接自定义 VPS [{display_name}] 并加入房间 [{room_name}]...")
@@ -893,7 +920,7 @@ class Civ6P2PApp(tk.Tk):
                 session = EasyTierSession(
                     role=role,
                     room_name=room_name,
-                    room_secret=room_key,
+                    room_secret=et_secret,
                     peer_uris=peer_uris,
                     hostname=nick,
                     log_cb=self._thread_log,
@@ -916,6 +943,7 @@ class Civ6P2PApp(tk.Tk):
         self.et_disc_btn.configure(state="disabled")
         self.et_node_combo.configure(state="normal")
         self.et_room_entry.configure(state="normal")
+        self.et_pw_entry.configure(state="normal")
         if not self._has_active_bridge():
             self.rb_host.configure(state="normal")
             self.rb_client.configure(state="normal")

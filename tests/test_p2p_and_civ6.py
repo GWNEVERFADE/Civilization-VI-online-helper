@@ -1064,6 +1064,157 @@ class TestGlassGuiController(unittest.TestCase):
                 host_node.stop()
                 relay.stop()
 
+    def test_custom_vps_optional_password_udp_relay_auth_and_persistence(self) -> None:
+        import tempfile
+        from civ6_p2p.glass_gui import GlassAppController
+        from civ6_p2p.vps_store import VpsNodeStore
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store_file = Path(tmpdir) / "vps_pw.json"
+            ctrl = GlassAppController(start_bg_poller=False, vps_store_path=store_file)
+            relay = RelayServer(listen_port=0, auth_password="vps-secret-88")
+            host_node = P2PNode(nickname="PwHost", role="host", listen_port=0, room_key="civ6")
+            try:
+                rport = relay.start()
+                host_node.start()
+                host_node.connect_relay(f"127.0.0.1:{rport}", "pw-room", relay_password="vps-secret-88")
+
+                saved = ctrl.add_vps_node("加密中继", f"127.0.0.1:{rport}", "udp_relay", "vps-secret-88")
+                self.assertTrue(saved["ok"])
+                self.assertTrue(saved["node"]["has_password"])
+                self.assertEqual(saved["node"]["password"], "vps-secret-88")
+                self.assertEqual(ctrl.get_state()["et_password"], "vps-secret-88")
+
+                reloaded = VpsNodeStore(path=store_file).list_nodes()
+                self.assertEqual(len(reloaded), 1)
+                self.assertEqual(reloaded[0].password, "vps-secret-88")
+
+                ctrl.start_node(role="client", nickname="PwClient", port_text="0", room_key="civ6")
+
+                ctrl.connect_easytier(saved["node"]["label"], "pw-room", password="wrong-password")
+                deadline = time.monotonic() + 2.5
+                while time.monotonic() < deadline:
+                    st_bad = ctrl.get_state()
+                    if st_bad["et_status_level"] == "error":
+                        break
+                    time.sleep(0.05)
+                st_bad = ctrl.get_state()
+                self.assertEqual(st_bad["et_status_level"], "error")
+                self.assertEqual(st_bad["peers"], [])
+
+                ctrl.disconnect_easytier()
+                ctrl.connect_easytier(saved["node"]["label"], "pw-room", password="")
+                deadline = time.monotonic() + 2.5
+                while time.monotonic() < deadline:
+                    st_empty = ctrl.get_state()
+                    if st_empty["et_status_level"] == "error":
+                        break
+                    time.sleep(0.05)
+                self.assertEqual(ctrl.get_state()["et_status_level"], "error")
+
+                ctrl.disconnect_easytier()
+                ctrl.connect_easytier(saved["node"]["label"], "pw-room", password="vps-secret-88")
+                deadline = time.monotonic() + 3.0
+                while time.monotonic() < deadline:
+                    st_ok = ctrl.get_state()
+                    if st_ok["peers"] and st_ok["peers"][0]["status"] == "online":
+                        break
+                    time.sleep(0.05)
+                st_ok = ctrl.get_state()
+                self.assertEqual(st_ok["et_status_level"], "connected")
+                self.assertEqual(len(st_ok["peers"]), 1)
+                self.assertEqual(st_ok["peers"][0]["nickname"], "PwHost")
+            finally:
+                ctrl.shutdown()
+                host_node.stop()
+                relay.stop()
+
+    def test_live_easytier_private_mode_with_optional_vps_password(self) -> None:
+        import subprocess
+        import uuid
+
+        exe = find_easytier_core()
+        self.assertTrue(exe.is_file())
+        lan_ip = detect_local_network_info().default_ipv4
+        if not lan_ip:
+            self.skipTest("No non-loopback IPv4 available for EasyTier private-mode test")
+
+        vps_port = _pick_free_udp_port()
+        host_relay_port = _pick_free_udp_port()
+        vps_pass = "et-vps-pass-77"
+
+        vps_proc = subprocess.Popen(
+            [
+                str(exe),
+                "--no-tun",
+                "--machine-id",
+                str(uuid.uuid4()),
+                "--network-name",
+                "civ6-pw-room",
+                "--network-secret",
+                vps_pass,
+                "--private-mode",
+                "true",
+                "-l",
+                f"tcp://{lan_ip}:{vps_port}",
+                "-l",
+                f"udp://{lan_ip}:{vps_port}",
+                "-r",
+                "0",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.8)
+
+        host_et = EasyTierSession(
+            role="host",
+            room_name="civ6-pw-room",
+            room_secret=vps_pass,
+            peer_uris=[f"tcp://{lan_ip}:{vps_port}"],
+            hostname="PwEtHost",
+            host_relay_port=host_relay_port,
+        )
+        client_et = EasyTierSession(
+            role="client",
+            room_name="civ6-pw-room",
+            room_secret=vps_pass,
+            peer_uris=[f"tcp://{lan_ip}:{vps_port}"],
+            hostname="PwEtClient",
+            host_relay_port=host_relay_port,
+        )
+        host_node = P2PNode(nickname="PwEtHost", role="host", listen_port=0, room_key="civ6")
+        client_node = P2PNode(nickname="PwEtClient", role="client", listen_port=0, room_key="civ6")
+        try:
+            haddr = host_et.start()
+            caddr = client_et.start()
+            host_node.start()
+            client_node.start()
+            host_node.connect_relay(haddr, "civ6-pw-room", transport_name="VPS EasyTier")
+            client_node.connect_relay(caddr, "civ6-pw-room", transport_name="VPS EasyTier")
+
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                cp = client_node.list_peers()
+                if cp and cp[0].status == "online":
+                    break
+                time.sleep(0.15)
+            cp = client_node.list_peers()
+            self.assertEqual(len(cp), 1)
+            self.assertEqual(cp[0].status, "online")
+            res = client_node.run_connectivity_test(cp[0].peer_key, count=5, timeout_s=3.0)
+            self.assertTrue(res.passed, f"EasyTier private-mode test failed: {res.summary}")
+        finally:
+            client_node.stop()
+            host_node.stop()
+            client_et.stop()
+            host_et.stop()
+            vps_proc.terminate()
+            try:
+                vps_proc.wait(timeout=2.0)
+            except Exception:
+                vps_proc.kill()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

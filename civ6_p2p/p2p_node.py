@@ -24,6 +24,7 @@ from .protocol import (
     DEFAULT_RELAY_PORT,
     DEFAULT_ROOM_KEY,
     MsgType,
+    compute_relay_auth_token,
     compute_room_tag,
     pack_civ6_disc,
     pack_json_packet,
@@ -61,6 +62,7 @@ class RelayClientStatus:
     server_display: str = ""
     room_id: str = ""
     room_members: int = 0
+    auth_error: bool = False
 
 
 @dataclass
@@ -269,6 +271,8 @@ class P2PNode:
 
         self._relay_enabled: bool = False
         self._relay_connected: bool = False
+        self._relay_auth_error: bool = False
+        self._relay_password: str = ""
         self._relay_ip: str = ""
         self._relay_port: int = 0
         self._relay_ip_ver: int = 4
@@ -474,6 +478,7 @@ class P2PNode:
         room_id: str,
         default_port: int = DEFAULT_RELAY_PORT,
         transport_name: str = "EasyTier 中继",
+        relay_password: str = "",
     ) -> tuple[str, int]:
         if not self._running:
             raise RuntimeError("请先启动本机节点")
@@ -509,6 +514,8 @@ class P2PNode:
         with self._lock:
             self._relay_enabled = True
             self._relay_connected = False
+            self._relay_auth_error = False
+            self._relay_password = str(relay_password or "").strip()[:128]
             self._relay_ip = resolved_ip
             self._relay_port = port
             self._relay_ip_ver = resolved_ver
@@ -530,22 +537,28 @@ class P2PNode:
             relay_ip = self._relay_ip
             relay_port = self._relay_port
             room_id = self._relay_room_id
+            relay_pw = self._relay_password
             relay_peer_keys = [k for k, p in self._peers.items() if p.transport == "relay"]
 
         if self._running and relay_ip:
             bye_pkt = pack_json_packet(MsgType.BYE, self.room_tag, {"node_id": self.node_id})
             for k in relay_peer_keys:
                 self._send_to_peer(k, bye_pkt)
+            unreg_body = {"room_id": room_id, "node_id": self.node_id}
+            if relay_pw:
+                unreg_body["auth"] = compute_relay_auth_token(relay_pw)
             unreg = pack_json_packet(
                 MsgType.RELAY_UNREGISTER,
                 self.room_tag,
-                {"room_id": room_id, "node_id": self.node_id},
+                unreg_body,
             )
             self._send_raw(relay_ip, relay_port, unreg)
 
         with self._lock:
             self._relay_enabled = False
             self._relay_connected = False
+            self._relay_auth_error = False
+            self._relay_password = ""
             self._relay_room_members = 0
             for k in relay_peer_keys:
                 p = self._peers.pop(k, None)
@@ -563,6 +576,7 @@ class P2PNode:
                 server_display=self._relay_server_display,
                 room_id=self._relay_room_id,
                 room_members=self._relay_room_members,
+                auth_error=self._relay_auth_error,
             )
 
     def _send_relay_register(self) -> None:
@@ -572,18 +586,22 @@ class P2PNode:
             relay_ip = self._relay_ip
             relay_port = self._relay_port
             room_id = self._relay_room_id
+            relay_pw = self._relay_password
             self._relay_last_reg_sent = time.monotonic()
 
+        body = {
+            "room_id": room_id,
+            "node_id": self.node_id,
+            "nickname": self.nickname,
+            "role": self.role,
+            "civ6": self._get_local_civ6_status(),
+        }
+        if relay_pw:
+            body["auth"] = compute_relay_auth_token(relay_pw)
         pkt = pack_json_packet(
             MsgType.RELAY_REGISTER,
             self.room_tag,
-            {
-                "room_id": room_id,
-                "node_id": self.node_id,
-                "nickname": self.nickname,
-                "role": self.role,
-                "civ6": self._get_local_civ6_status(),
-            },
+            body,
         )
         self._send_raw(relay_ip, relay_port, pkt)
 
@@ -920,6 +938,16 @@ class P2PNode:
         if data is None or data.get("room_id") != expected_room:
             return
 
+        if data.get("auth_error"):
+            with self._lock:
+                was_err = self._relay_auth_error
+                self._relay_auth_error = True
+                self._relay_connected = False
+                self._relay_last_seen = time.monotonic()
+            if not was_err:
+                self._log("err", "[中继] VPS 连接密码错误或未填写密码，认证被拒绝！")
+            return
+
         peers_list = data.get("peers")
         if not isinstance(peers_list, list):
             return
@@ -939,6 +967,7 @@ class P2PNode:
         with self._lock:
             if not self._relay_connected:
                 just_connected = True
+            self._relay_auth_error = False
             self._relay_connected = True
             self._relay_last_seen = now
             self._relay_room_members = len(peers_list)

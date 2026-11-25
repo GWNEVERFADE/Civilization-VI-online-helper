@@ -45,6 +45,13 @@ def compute_room_tag(room_key: str) -> bytes:
     return digest[:4]
 
 
+def compute_relay_auth_token(password: str) -> str:
+    pw = (password or "").strip()
+    if not pw:
+        return ""
+    return hashlib.sha256(f"civ6-relay-auth-v1:{pw}".encode("utf-8")).hexdigest()[:32]
+
+
 def pack_packet(msg_type: MsgType, room_tag: bytes, payload: bytes = b"") -> bytes:
     return struct.pack(HEADER_FMT, MAGIC, PROTO_VERSION, int(msg_type), room_tag) + payload
 

@@ -124,7 +124,7 @@ class EasyTierSession:
         self.room_name = room_name.strip()[:64]
         if not self.room_name:
             raise ValueError("EasyTier 房间名不能为空")
-        self.room_secret = room_secret.strip()[:64]
+        self.room_secret = room_secret.strip()[:128]
         self.peer_uris = list(peer_uris)
         self.hostname = (hostname.strip() or ("civ6-host" if self.role == "host" else "civ6-client"))[:32]
         self.host_relay_port = int(host_relay_port)

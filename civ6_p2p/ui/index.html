@@ -203,6 +203,13 @@ __INLINE_CSS__
                   <label class="row-label" for="input-et-room" data-i18n="lblRoomName">房间名</label>
                   <input id="input-et-room" class="glass-input mono" type="text" maxlength="64" placeholder="civ6-room" autocomplete="off" />
                 </div>
+                <div class="relay-pass-col">
+                  <label class="row-label" for="input-et-password" data-i18n="lblVpsPassword">连接密码（选填）</label>
+                  <div class="pw-wrap">
+                    <input id="input-et-password" class="glass-input mono" type="password" maxlength="128" data-i18n-placeholder="phVpsPassword" placeholder="无密码留空" autocomplete="off" />
+                    <button id="btn-toggle-et-pw" class="pw-eye-btn light-interactive" type="button" data-i18n-title="togglePwTitle" title="显示 / 隐藏密码" aria-label="Toggle password visibility">👁</button>
+                  </div>
+                </div>
                 <div class="row-actions">
                   <button id="btn-et-connect" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnConnectVps">连接 VPS 房间</button>
                   <button id="btn-et-disconnect" class="glass-btn btn-soft btn-danger-soft light-interactive" type="button" disabled data-i18n="btnDisconnect">断开</button>
@@ -451,6 +458,15 @@ __INLINE_CSS__
           <label class="field-label" for="vps-input-address" data-i18n="vpsAddrLabel">VPS 节点地址</label>
           <input id="vps-input-address" class="glass-input mono" type="text" placeholder="tcp://1.2.3.4:11010 或 udp://vps.example.com:11010" autocomplete="off" />
           <p id="vps-addr-hint" class="vps-field-hint"></p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="vps-input-password" data-i18n="vpsPwLabel">VPS 连接密码（选填）</label>
+          <div class="pw-wrap">
+            <input id="vps-input-password" class="glass-input mono" type="password" maxlength="128" data-i18n-placeholder="phVpsModalPw" placeholder="无密码留空" autocomplete="off" />
+            <button id="btn-toggle-vps-modal-pw" class="pw-eye-btn light-interactive" type="button" data-i18n-title="togglePwTitle" title="显示 / 隐藏密码" aria-label="Toggle password visibility">👁</button>
+          </div>
+          <p id="vps-pw-hint" class="vps-field-hint"></p>
         </div>
 
         <div id="vps-form-error" class="vps-form-error" hidden></div>

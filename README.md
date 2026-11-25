@@ -54,11 +54,19 @@ python -m unittest discover -s tests -v
 
 - **EasyTier VPS (`TCP / UDP 11010`)**:
   ```bash
+  # Open mode / 无密码模式
   docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010
+
+  # With optional password / 启用可选连接密码
+  docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun --network-name civ6-room --network-secret YOUR_PASS --private-mode true -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010
   ```
 - **Lightweight UDP Relay (`UDP 38668`)**:
   ```bash
+  # Open mode / 无密码模式
   python3 civ6_relay_server.py --port 38668
+
+  # With optional password / 启用可选连接密码
+  python3 civ6_relay_server.py --port 38668 --password YOUR_PASS
   ```
 
 ---

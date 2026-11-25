@@ -1304,9 +1304,52 @@ html[data-theme="dark"] .sub-glass-well {
 
 .relay-row {
   display: grid;
-  grid-template-columns: 1.85fr 0.65fr auto;
+  grid-template-columns: 1.72fr 0.62fr 0.78fr auto;
   align-items: end;
   gap: 10px;
+}
+
+.pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pw-wrap .glass-input {
+  padding-right: 30px;
+}
+
+.pw-eye-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  opacity: 0.75;
+  transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.pw-eye-btn:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.pw-eye-btn.is-shown {
+  color: var(--accent);
+  background: var(--accent-soft-bg);
+  opacity: 1;
 }
 
 .vps-input-row {
@@ -1380,6 +1423,17 @@ html[data-theme="dark"] .sub-glass-well {
   background: var(--ok-bg);
   color: var(--ok-text);
   border-color: var(--ok-border);
+}
+
+.vps-lock-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border: 1px solid var(--warn-border);
 }
 
 .combo-vps-addr {
@@ -1644,7 +1698,8 @@ html[data-theme="dark"] .sub-glass-well {
 }
 
 .relay-node-col,
-.relay-room-col {
+.relay-room-col,
+.relay-pass-col {
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import select
 import socket
 import threading
@@ -11,6 +12,7 @@ from .network_utils import canonicalize_ip, create_dualstack_udp_socket, format_
 from .protocol import (
     DEFAULT_RELAY_PORT,
     MsgType,
+    compute_relay_auth_token,
     pack_json_packet,
     pack_relay_forward,
     unpack_json_payload,
@@ -57,10 +59,12 @@ class RelayServer:
         self,
         listen_port: int = DEFAULT_RELAY_PORT,
         idle_timeout_s: float = 15.0,
+        auth_password: str = "",
         log_cb: Callable[[str, str], None] | None = None,
     ) -> None:
         self.listen_port = int(listen_port)
         self.idle_timeout_s = float(idle_timeout_s)
+        self._auth_token = compute_relay_auth_token(auth_password)
         self._log_cb = log_cb
 
         self._sock: socket.socket | None = None
@@ -118,7 +122,8 @@ class RelayServer:
         self._thread = threading.Thread(target=self._serve_loop, name="civ6-relay-server", daemon=True)
         self._thread.start()
         mode = "IPv6/IPv4 双栈 [::]" if self._is_ipv6 else "IPv4 0.0.0.0"
-        self._log("ok", f"[中继服务端] 已启动监听 {mode}:{self._actual_port}")
+        auth_tag = " (已启用连接密码)" if self._auth_token else ""
+        self._log("ok", f"[中继服务端] 已启动监听 {mode}:{self._actual_port}{auth_tag}")
         return self._actual_port
 
     def stop(self) -> None:
@@ -248,6 +253,16 @@ class RelayServer:
         node_id = str(data.get("node_id", "")).strip()[:32]
         if not room_id or not node_id:
             return
+        if self._auth_token:
+            got_auth = str(data.get("auth", "")).strip()
+            if not hmac.compare_digest(got_auth, self._auth_token):
+                err_pkt = pack_json_packet(
+                    MsgType.RELAY_PEERS,
+                    room_tag,
+                    {"room_id": room_id, "auth_error": True, "peers": []},
+                )
+                self._send_to(src_ip, src_port, err_pkt)
+                return
         nickname = str(data.get("nickname", "")).strip()[:32] or f"Player-{node_id[:4]}"
         role = str(data.get("role", "client")).strip().lower()
         if role not in ("host", "client"):
@@ -313,6 +328,10 @@ class RelayServer:
         data = unpack_json_payload(payload)
         if data is None:
             return
+        if self._auth_token:
+            got_auth = str(data.get("auth", "")).strip()
+            if not hmac.compare_digest(got_auth, self._auth_token):
+                return
         room_id = str(data.get("room_id", "")).strip()[:64]
         node_id = str(data.get("node_id", "")).strip()[:32]
         if not room_id or not node_id:

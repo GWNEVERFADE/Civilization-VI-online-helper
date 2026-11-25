@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import time
 
@@ -12,15 +13,27 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Civ6 IPv6/IPv4 联机助手 - 独立 UDP 中继服务器")
     parser.add_argument("--port", type=int, default=DEFAULT_RELAY_PORT, help=f"监听 UDP 端口 (默认: {DEFAULT_RELAY_PORT})")
     parser.add_argument("--idle-timeout", type=float, default=15.0, help="客户端心跳超时秒数 (默认: 15)")
+    parser.add_argument(
+        "--password",
+        type=str,
+        default=os.environ.get("CIV6_RELAY_PASSWORD", ""),
+        help="可选连接密码（也可通过环境变量 CIV6_RELAY_PASSWORD 设置，留空表示不启用密码）",
+    )
     args = parser.parse_args()
 
     def log_cb(level: str, msg: str) -> None:
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{ts}] [{level.upper()}] {msg}", flush=True)
 
-    server = RelayServer(listen_port=args.port, idle_timeout_s=args.idle_timeout, log_cb=log_cb)
+    server = RelayServer(
+        listen_port=args.port,
+        idle_timeout_s=args.idle_timeout,
+        auth_password=args.password,
+        log_cb=log_cb,
+    )
     actual_port = server.start()
-    print(f"中继服务器运行中 (UDP :{actual_port})，按 Ctrl+C 停止...", flush=True)
+    auth_hint = "（已启用密码认证）" if args.password.strip() else "（无密码模式）"
+    print(f"中继服务器运行中 (UDP :{actual_port}) {auth_hint}，按 Ctrl+C 停止...", flush=True)
 
     stop = False
 
