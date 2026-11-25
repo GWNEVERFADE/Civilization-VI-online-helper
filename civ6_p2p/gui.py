@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-CV6 online helper - Strict Two-Step Tkinter GUI:
-  Step 1: Connect & Verify (two connection categories: ① IPv6 / P2P Direct  ② Server Relay)
-          - Real-time online headcount, peer online/offline status, RTT, packet loss, remote Civ6 status
-          - Active connectivity + 1150B large-packet verification
-  Step 2: Civilization VI Multiplayer Helper (LOCKED until Step 1 succeeds with >= 2 people online!)
-          - Host Bridge / Client Helper (62900 discovery + 62056 game session)
-          - Strictly requires at least 2 people online and connectivity test passed to start
-"""
-
 from __future__ import annotations
 
 import queue
@@ -62,7 +50,6 @@ class Civ6P2PApp(tk.Tk):
         except Exception:
             pass
 
-        # Runtime state
         self.log_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self.ui_queue: queue.Queue[tuple[str, object]] = queue.Queue()
 
@@ -78,20 +65,17 @@ class Civ6P2PApp(tk.Tk):
         self.client_bridge: ClientCiv6Bridge | None = None
         self._last_gate: Step2GateState = evaluate_step2_gate(False, [])
 
-        # Tk Variables - Step 1 Identity & Mode
         default_nick = socket.gethostname()[:16] or "Player"
         self.role_var = tk.StringVar(value="client")
         self.nickname_var = tk.StringVar(value=default_nick)
         self.port_var = tk.StringVar(value=str(DEFAULT_P2P_PORT))
         self.room_key_var = tk.StringVar(value=DEFAULT_ROOM_KEY)
-        self.conn_mode_var = tk.StringVar(value="p2p_ipv6")  # "p2p_ipv6" | "relay"
+        self.conn_mode_var = tk.StringVar(value="p2p_ipv6")
 
-        # Mode 1: IPv6 / P2P Direct
         self.advertise_ip_var = tk.StringVar()
         self.invite_code_var = tk.StringVar(value="启动本机节点后自动生成连接码")
         self.peer_input_var = tk.StringVar()
 
-        # Mode 2: Custom VPS Relay (EasyTier VPS / Self-hosted UDP Relay)
         self._vps_store = VpsNodeStore()
         self._vps_label_to_id: dict[str, str] = {}
         self._et_preset_labels: list[str] = []
@@ -100,18 +84,15 @@ class Civ6P2PApp(tk.Tk):
         self.et_status_var = tk.StringVar(value="⚪ 未连接 VPS 中继（请先添加或输入自建 VPS 节点）")
         self._relay_active_kind: str = ""
 
-        # Header badges
         self.badge_ipv6_var = tk.StringVar(value="IPv6: 检测中...")
         self.badge_node_var = tk.StringVar(value="节点: 未启动")
         self.badge_online_var = tk.StringVar(value="在线: 0 人")
         self.badge_civ6_var = tk.StringVar(value="本机文明6: 未运行")
 
-        # Step 1 banner
         self.step1_banner_var = tk.StringVar(
             value="请先启动本机联机节点，选择「IPv6/P2P 直连」或「服务器中继」连上好友（至少 2 人在线）并测试连通通过，才能解锁第二步。"
         )
 
-        # Step 2 Variables (Civ6 Multiplayer Helper)
         self.target_host_var = tk.StringVar()
         self.preflight_node_var = tk.StringVar(value="❌ 本机节点未启动")
         self.preflight_peer_var = tk.StringVar(value="❌ 在线人数不足 2 人")
@@ -134,9 +115,6 @@ class Civ6P2PApp(tk.Tk):
         self.after(120, self._ui_tick)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    # ----------------------------
-    # Styling & UI Layout
-    # ----------------------------
 
     def _build_style(self) -> None:
         self.configure(bg="#f1f5f9")
@@ -179,7 +157,6 @@ class Civ6P2PApp(tk.Tk):
         root = ttk.Frame(self, style="Root.TFrame", padding=14)
         root.pack(fill="both", expand=True)
 
-        # Header
         header = ttk.Frame(root, style="Root.TFrame")
         header.pack(fill="x", pady=(0, 10))
         header.columnconfigure(0, weight=1)
@@ -204,7 +181,6 @@ class Civ6P2PApp(tk.Tk):
         self.badge_civ6_lbl = ttk.Label(right_hdr, textvariable=self.badge_civ6_var, style="Badge.TLabel")
         self.badge_civ6_lbl.pack(side="left", padx=3)
 
-        # Strict 2-Step Notebook
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill="both", expand=True)
 
@@ -217,7 +193,6 @@ class Civ6P2PApp(tk.Tk):
         self._build_tab_step1()
         self._build_tab_step2()
 
-        # Shared log panel
         log_card = ttk.Frame(root, style="Card.TFrame", padding=10)
         log_card.pack(fill="x", pady=(10, 0))
         log_card.columnconfigure(0, weight=1)
@@ -260,7 +235,6 @@ class Civ6P2PApp(tk.Tk):
         self._append_log("info", "欢迎使用 CV6 online helper！请先在第一步通过「IPv6/P2P 直连」或「服务器中继」连上好友并测试通过（至少 2 人在线），即可解锁第二步。")
 
     def _build_tab_step1(self) -> None:
-        # Card 1: Local node settings
         c1 = ttk.Frame(self.tab_step1, style="Card.TFrame", padding=10)
         c1.pack(fill="x", pady=(0, 8))
         c1.columnconfigure(7, weight=1)
@@ -297,7 +271,6 @@ class Civ6P2PApp(tk.Tk):
         self.stop_node_btn = ttk.Button(node_btns, text="停止", style="Soft.TButton", command=self._stop_p2p_node, state="disabled")
         self.stop_node_btn.pack(side="left")
 
-        # Card 2: Connection Method Switcher (Category 1: IPv6/P2P Direct | Category 2: Server Relay)
         c2 = ttk.Frame(self.tab_step1, style="Card.TFrame", padding=10)
         c2.pack(fill="x", pady=(0, 8))
         c2.columnconfigure(0, weight=1)
@@ -320,12 +293,10 @@ class Civ6P2PApp(tk.Tk):
             command=self._switch_conn_mode,
         ).pack(side="left")
 
-        # Container holding the active mode panel
         self.mode_container = ttk.Frame(c2, style="SubCard.TFrame", padding=10)
         self.mode_container.grid(row=1, column=0, sticky="ew")
         self.mode_container.columnconfigure(0, weight=1)
 
-        # Panel A: IPv6 / P2P Direct
         self.panel_p2p = ttk.Frame(self.mode_container, style="SubCard.TFrame")
         self.panel_p2p.columnconfigure(1, weight=1)
 
@@ -355,7 +326,6 @@ class Civ6P2PApp(tk.Tk):
             row=2, column=2, sticky="e", pady=(5, 2)
         )
 
-        # Panel B: Custom VPS Relay
         self.panel_relay = ttk.Frame(self.mode_container, style="SubCard.TFrame")
         self.panel_relay.columnconfigure(1, weight=2)
         self.panel_relay.columnconfigure(3, weight=1)
@@ -390,7 +360,6 @@ class Civ6P2PApp(tk.Tk):
 
         self._switch_conn_mode()
 
-        # Card 3: Online Members & Connectivity Verification
         c3 = ttk.Frame(self.tab_step1, style="Card.TFrame", padding=10)
         c3.pack(fill="both", expand=True)
         c3.columnconfigure(0, weight=1)
@@ -440,7 +409,6 @@ class Civ6P2PApp(tk.Tk):
         self.peer_tree.tag_configure("connecting", foreground="#b45309")
         self.peer_tree.tag_configure("offline", foreground="#b91c1c")
 
-        # Bottom Gate Banner
         self.step1_banner = ttk.Frame(c3, style="Banner.TFrame", padding=(10, 8))
         self.step1_banner.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         self.step1_banner.columnconfigure(0, weight=1)
@@ -457,7 +425,6 @@ class Civ6P2PApp(tk.Tk):
         self.goto_step2_btn.grid(row=0, column=1, sticky="e", padx=(10, 0))
 
     def _build_tab_step2(self) -> None:
-        # Card 1: Pre-flight checklist
         c1 = ttk.Frame(self.tab_step2, style="Card.TFrame", padding=12)
         c1.pack(fill="x", pady=(0, 8))
         c1.columnconfigure(1, weight=1)
@@ -479,7 +446,6 @@ class Civ6P2PApp(tk.Tk):
         ttk.Label(c1, text="对端文明6:", style="Body.TLabel").grid(row=2, column=2, sticky="w", padx=(16, 8), pady=3)
         ttk.Label(c1, textvariable=self.preflight_remote_civ6_var, style="Mono.TLabel").grid(row=2, column=3, sticky="w", pady=3)
 
-        # Card 2: Civ6 Helper Controls
         c2 = ttk.Frame(self.tab_step2, style="Card.TFrame", padding=12)
         c2.pack(fill="x", pady=(0, 8))
         c2.columnconfigure(1, weight=1)
@@ -513,7 +479,6 @@ class Civ6P2PApp(tk.Tk):
         self.stop_bridge_btn.grid(row=0, column=1)
         ttk.Label(act, textvariable=self.bridge_status_var, style="CardTitle.TLabel").grid(row=0, column=2, sticky="e")
 
-        # Card 3: Live Civ6 Traffic & Diagnostics
         c3 = ttk.Frame(self.tab_step2, style="Card.TFrame", padding=12)
         c3.pack(fill="both", expand=True)
         c3.columnconfigure(0, weight=1)
@@ -543,9 +508,6 @@ class Civ6P2PApp(tk.Tk):
             self.panel_relay.grid_forget()
             self.panel_p2p.grid(row=0, column=0, sticky="ew")
 
-    # ----------------------------
-    # Network & Invite Helpers
-    # ----------------------------
 
     def _refresh_network_info(self) -> None:
         self.net_info = detect_local_network_info()
@@ -649,9 +611,6 @@ class Civ6P2PApp(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    # ----------------------------
-    # Step 1: Node, IPv6/P2P & Relay Actions
-    # ----------------------------
 
     def _on_role_changed(self) -> None:
         role = self.role_var.get()
@@ -1001,9 +960,6 @@ class Civ6P2PApp(tk.Tk):
         self.p2p_node.remove_peer(peer_key)
         self._refresh_peer_table()
 
-    # ----------------------------
-    # Strict Step 1 -> Step 2 Gate
-    # ----------------------------
 
     def _has_active_bridge(self) -> bool:
         return bool(
@@ -1016,7 +972,6 @@ class Civ6P2PApp(tk.Tk):
         active_bridge = self._has_active_bridge()
         step2_unlocked = gate.can_enter_step2 or active_bridge
 
-        # Online count badge
         self.badge_online_var.set(f"在线: {gate.total_online} 人")
         if gate.total_online >= 2:
             self.badge_online_lbl.configure(style="BadgeOk.TLabel")
@@ -1025,7 +980,6 @@ class Civ6P2PApp(tk.Tk):
         else:
             self.badge_online_lbl.configure(style="Badge.TLabel")
 
-        # Step 1 banner & Enter Step 2 button
         self.step1_banner_var.set(gate.reason)
         if gate.can_enter_step2:
             self.step1_banner.configure(style="BannerOk.TFrame")
@@ -1036,7 +990,6 @@ class Civ6P2PApp(tk.Tk):
             self.step1_banner_lbl.configure(style="Banner.TLabel")
             self.goto_step2_btn.configure(state="normal" if active_bridge else "disabled")
 
-        # Step 2 tab lock/unlock
         if step2_unlocked:
             self.notebook.tab(
                 self.tab_step2,
@@ -1044,7 +997,6 @@ class Civ6P2PApp(tk.Tk):
                 text=f"  第二步 · 文明6 联机辅助（✅ 在线 {gate.total_online} 人）  ",
             )
         else:
-            # If user was on Step 2 without an active bridge and peer dropped offline, return to Step 1
             if str(self.notebook.select()) == str(self.tab_step2):
                 self.notebook.select(self.tab_step1)
                 self._append_log("warn", "在线人数不足 2 人或尚未测试通过，第二步已重新锁定。")
@@ -1054,7 +1006,6 @@ class Civ6P2PApp(tk.Tk):
                 text="  第二步 · 文明6 联机辅助（🔒 待第一步连通解锁）  ",
             )
 
-        # Start Civ6 Helper button strict gate
         if not active_bridge:
             can_start = gate.can_enter_step2
             if can_start and self.role_var.get() == "client":
@@ -1071,9 +1022,6 @@ class Civ6P2PApp(tk.Tk):
         self._on_role_changed()
         self.notebook.select(self.tab_step2)
 
-    # ----------------------------
-    # Step 2: Civ6 Helper Actions
-    # ----------------------------
 
     def _start_civ6_bridge(self) -> None:
         peers = self.p2p_node.list_peers() if self.p2p_node else []
@@ -1169,9 +1117,6 @@ class Civ6P2PApp(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    # ----------------------------
-    # Periodic UI Refresh Loop
-    # ----------------------------
 
     def _ui_tick(self) -> None:
         try:
@@ -1246,7 +1191,7 @@ class Civ6P2PApp(tk.Tk):
         elif ev == "probe_done":
             if self.client_bridge and self.client_bridge.running:
                 self.probe_room_btn.configure(state="normal")
-            ok, cnt, total_bytes = payload  # type: ignore[misc]
+            ok, cnt, total_bytes = payload
             if ok:
                 messagebox.showinfo(
                     "探测成功",
@@ -1259,7 +1204,7 @@ class Civ6P2PApp(tk.Tk):
                     "请确认房主：\n1. 已在软件第二步点击「启动房主联机桥接」；\n2. 已在文明6中创建了「局域网」房间。",
                 )
         elif ev == "et_started":
-            session, local_addr, room_name = payload  # type: ignore[misc]
+            session, local_addr, room_name = payload
             self.easytier_session = session
             if self.p2p_node and self.p2p_node.running:
                 try:
@@ -1322,7 +1267,6 @@ class Civ6P2PApp(tk.Tk):
             else:
                 self.peer_tree.insert("", "end", iid=p.peer_key, values=values, tags=(p.status,))
 
-        # Update VPS Relay session status indicator
         if node_running and self.p2p_node is not None:
             rst = self.p2p_node.get_relay_status()
             if self.easytier_session is not None:
@@ -1354,7 +1298,6 @@ class Civ6P2PApp(tk.Tk):
             peers = self.p2p_node.list_peers() if self.p2p_node else []
         self._peer_label_to_key.clear()
         labels: list[str] = []
-        # Only verified online peers can be targeted in Step 2
         verified_online = sorted(
             [p for p in peers if p.status == "online" and p.verified],
             key=lambda p: (0 if p.role == "host" else 1, p.peer_key),
@@ -1417,9 +1360,6 @@ class Civ6P2PApp(tk.Tk):
             else:
                 self.bridge_activity_var.set(f"当前状态: {bs.last_activity_desc}")
 
-    # ----------------------------
-    # Logging & Shutdown
-    # ----------------------------
 
     def _thread_log(self, level: str, msg: str) -> None:
         ts = time.strftime("%H:%M:%S")
@@ -1453,7 +1393,6 @@ def run_gui() -> None:
         run_glass_gui()
         return
     except Exception:
-        # Automatic fallback to standard-library Tkinter GUI if WebView2/pywebview is unavailable
         pass
 
     app = Civ6P2PApp()

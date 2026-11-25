@@ -1,35 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-civ6_l3_discovery_gui.py
-
-Civilization VI L3/VPN LAN room discovery helper, A/searcher side only.
-
-Normal user mode:
-  - No WinDivert
-  - No administrator privilege required
-  - No B-side helper
-  - No packet capture
-  - No route/metric modification
-  - Python standard library only
-
-What it does:
-  1. Watches Civilization VI UDP endpoints on this PC.
-  2. When Civ6 creates a new Windows dynamic UDP endpoint, sends exactly one
-     discovery packet from the same source port:
-
-       local_ip:civ6_temp_port -> host_ip:62900
-       payload = 8d e8 fc 70
-
-Use:
-  1. Start Civilization VI on the searcher/client PC.
-  2. Run this GUI.
-  3. Enter this PC's VPN/overlay IP as Local IP, e.g. 10.88.66.2.
-  4. Enter host player's VPN/overlay IP as Host IP, e.g. 10.88.66.3.
-  5. Click Start.
-  6. Enter/refresh Civ6 LAN room list.
-"""
-
 from __future__ import annotations
 
 import ctypes
@@ -45,10 +13,6 @@ from ctypes import wintypes
 from tkinter import messagebox, ttk
 
 
-# ----------------------------
-# Civ6 protocol constants
-# ----------------------------
-
 CIV6_PROCESS_NAMES = {
     "civilizationvi_dx12.exe",
     "civilizationvi.exe",
@@ -62,19 +26,11 @@ WINDOWS_DYNAMIC_PORT_MIN = 49152
 WINDOWS_DYNAMIC_PORT_MAX = 65535
 
 
-# ----------------------------
-# Polling policy
-# ----------------------------
-
 IDLE_MS = 500
 BURST_MS = 3000
 BURST_INTERVAL_MS = 20
 PID_REFRESH_MS = 2000
 
-
-# ----------------------------
-# Windows constants
-# ----------------------------
 
 AF_INET = 2
 ERROR_INSUFFICIENT_BUFFER = 122
@@ -124,11 +80,6 @@ class UdpEndpoint:
 
 class StopRequested(Exception):
     pass
-
-
-# ----------------------------
-# Low-level Windows helpers
-# ----------------------------
 
 
 def now_ms() -> int:
@@ -218,7 +169,6 @@ def ipv4_from_dword(value: int) -> str:
 
 
 def port_from_dword(value: int) -> int:
-    # Windows MIB UDP port is stored in network byte order.
     raw = int(value) & 0xFFFF
     return socket.ntohs(raw)
 
@@ -307,11 +257,6 @@ def format_civ6_processes(civ6: dict[int, str]) -> str:
     return ", ".join(f"{name}(pid={pid})" for pid, name in sorted(civ6.items()))
 
 
-# ----------------------------
-# Network sending
-# ----------------------------
-
-
 def validate_ipv4(value: str, field_name: str) -> str:
     value = value.strip()
     if not value:
@@ -324,7 +269,6 @@ def validate_ipv4(value: str, field_name: str) -> str:
 
 
 def detect_route_local_ip(host_ip: str) -> str:
-    """Ask Windows routing which local IPv4 would be used to reach host_ip."""
     host_ip = validate_ipv4(host_ip, "房主 IP")
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -335,7 +279,6 @@ def detect_route_local_ip(host_ip: str) -> str:
 
 
 def list_local_ipv4_best_effort() -> list[str]:
-    """Best-effort local IPv4 list. VPN adapters may still need manual input."""
     ips: set[str] = set()
     try:
         hostname = socket.gethostname()
@@ -389,11 +332,6 @@ def send_discovery(local_ip: str, local_port: int, host_ip: str, log) -> bool:
                 s.close()
             except Exception:
                 pass
-
-
-# ----------------------------
-# Monitor worker
-# ----------------------------
 
 
 def sleep_or_stop(stop_event: threading.Event, ms: int) -> None:
@@ -462,8 +400,6 @@ def monitor_worker(local_ip: str, host_ip: str, stop_event: threading.Event, log
 
             current_keys = set(candidates.keys())
 
-            # First snapshot after Civ6 PID appears/changes is baseline.
-            # Baseline ports are usually old/background ports, not the short-lived discovery port.
             if not baseline_ready:
                 for key, ep in candidates.items():
                     known[key] = {
@@ -540,11 +476,6 @@ def monitor_worker(local_ip: str, host_ip: str, stop_event: threading.Event, log
         log("info", "stopped")
     except Exception as e:
         log("error", "worker crashed: %r", e)
-
-
-# ----------------------------
-# Tkinter GUI
-# ----------------------------
 
 
 class Civ6DiscoveryApp(tk.Tk):

@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Persistent custom VPS relay node store for CV6 online helper.
-
-Stores user-defined VPS relay nodes in JSON under %LOCALAPPDATA%/CV6OnlineHelper/vps_nodes.json.
-No hardcoded public / community relay nodes are bundled.
-
-Supported VPS node kinds:
-  - "easytier": Self-hosted EasyTier VPS node (e.g. tcp://1.2.3.4:11010, udp://vps.example.com:11010)
-  - "udp_relay": Self-hosted civ6_relay_server.py UDP relay (e.g. 1.2.3.4:38668, [240e::1]:38668)
-"""
-
 from __future__ import annotations
 
 import json
@@ -33,7 +20,7 @@ class VpsNodeItem:
     id: str
     name: str
     address: str
-    kind: str = "easytier"  # "easytier" | "udp_relay"
+    kind: str = "easytier"
 
     def kind_label(self) -> str:
         return "UDP中继" if self.kind == "udp_relay" else "EasyTier"
@@ -60,7 +47,6 @@ def default_vps_store_path() -> Path:
 
 
 def normalize_vps_node_address(address: str, kind: str = "easytier") -> str:
-    """Validate and normalize a custom VPS node address according to its kind."""
     clean_kind = str(kind).strip().lower()
     if clean_kind not in VALID_VPS_KINDS:
         raise ValueError(f"不支持的 VPS 节点类型: {kind}")
@@ -70,7 +56,6 @@ def normalize_vps_node_address(address: str, kind: str = "easytier") -> str:
         raise ValueError("VPS 节点地址不能为空")
 
     if clean_kind == "udp_relay":
-        # Allow optional relay:// or udp:// prefix for convenience
         stripped = raw
         for prefix in ("relay://", "civ6://", "udp://"):
             if stripped.lower().startswith(prefix):
@@ -81,12 +66,10 @@ def normalize_vps_node_address(address: str, kind: str = "easytier") -> str:
             return f"[{host}]:{port}"
         return f"{host}:{port}"
 
-    # EasyTier VPS node (supports one or multiple comma-separated URIs)
     uris = parse_easytier_peers(raw)
     normalized: list[str] = []
     for uri in uris:
         scheme, rest = uri.split("://", 1)
-        # If bare IPv4/domain without port was given, append default EasyTier port 11010
         if rest and not rest.startswith("[") and ":" not in rest and "/" not in rest:
             rest = f"{rest}:{DEFAULT_EASYTIER_PORT}"
         normalized.append(f"{scheme}://{rest}")
@@ -96,38 +79,29 @@ def normalize_vps_node_address(address: str, kind: str = "easytier") -> str:
 def resolve_relay_input(
     raw_input: str, saved_nodes: list[VpsNodeItem]
 ) -> tuple[str, str, str]:
-    """
-    Resolve user-selected or manually typed relay input into:
-      (kind, normalized_address, display_name)
-    """
     text = str(raw_input).strip()
     if not text:
         raise ValueError("请先添加或输入自建 VPS 节点地址（例如 tcp://你的VPS:11010 或 relay://你的VPS:38668）。")
 
-    # 1. Exact match against a saved custom VPS node (by id, display_label, or raw address)
     for node in saved_nodes:
         if text in (node.id, node.display_label(), node.address):
             return node.kind, node.address, node.name or node.address
 
-    # Strip friendly label suffix like "  [备注 · EasyTier]" if manually edited/selected
     clean = text.split("  [", 1)[0].strip() if "  [" in text else text
     for node in saved_nodes:
         if clean == node.address:
             return node.kind, node.address, node.name or node.address
 
-    # 2. Manual entry: relay:// or civ6:// routes to direct civ6_relay_server UDP relay
     low = clean.lower()
     if low.startswith("relay://") or low.startswith("civ6://"):
         norm = normalize_vps_node_address(clean, kind="udp_relay")
         return "udp_relay", norm, norm
 
-    # 3. Default manual entry routes to EasyTier custom VPS node
     norm = normalize_vps_node_address(clean, kind="easytier")
     return "easytier", norm, norm
 
 
 class VpsNodeStore:
-    """Thread-safe JSON persistence for custom user VPS nodes."""
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = path if path is not None else default_vps_store_path()
@@ -179,13 +153,11 @@ class VpsNodeStore:
         norm_addr = normalize_vps_node_address(address, kind=clean_kind)
         clean_name = str(name).strip()[:40]
         if not clean_name:
-            # Generate a short readable default name from address
             host_hint = norm_addr.split(",", 1)[0].strip()
             if "://" in host_hint:
                 host_hint = host_hint.split("://", 1)[1]
             clean_name = host_hint[:32]
 
-        # Update existing entry if same kind + address already exists
         for existing in self._nodes:
             if existing.kind == clean_kind and existing.address.lower() == norm_addr.lower():
                 existing.name = clean_name
@@ -210,3 +182,43 @@ class VpsNodeStore:
             self._save()
             return True
         return False
+
+
+def default_ui_prefs_path() -> Path:
+    return default_vps_store_path().parent / "ui_prefs.json"
+
+
+class UiPrefsStore:
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path if path is not None else default_ui_prefs_path()
+        self.lang: str = "zh"
+        self.theme: str = "light"
+        self.load()
+
+    def load(self) -> None:
+        try:
+            if self.path.is_file():
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    lang = str(raw.get("lang", "zh")).strip().lower()
+                    if lang in ("zh", "en"):
+                        self.lang = lang
+                    theme = str(raw.get("theme", "light")).strip().lower()
+                    if theme in ("light", "dark"):
+                        self.theme = theme
+        except Exception:
+            pass
+
+    def save(self, lang: str | None = None, theme: str | None = None) -> None:
+        if lang in ("zh", "en"):
+            self.lang = lang
+        if theme in ("light", "dark"):
+            self.theme = theme
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(
+                json.dumps({"lang": self.lang, "theme": self.theme}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass

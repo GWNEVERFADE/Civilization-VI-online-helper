@@ -6,11 +6,10 @@
   <title>CV6 online helper</title>
   <link rel="icon" type="image/png" href="__APP_LOGO_DATA_URI__" />
   <style>
-/*__INLINE_CSS__*/
+__INLINE_CSS__
   </style>
 </head>
 <body data-mood="idle" class="is-booting">
-  <!-- HyperOS 4 Living Ambient Light Field -->
   <div id="ambient-stage" aria-hidden="true">
     <div class="ambient-orb orb-1"></div>
     <div class="ambient-orb orb-2"></div>
@@ -19,9 +18,7 @@
     <div id="frost-grain"></div>
   </div>
 
-  <!-- Main Floating Workspace -->
   <div class="app-shell">
-    <!-- Header Bar -->
     <header class="app-header">
       <div class="brand-cluster">
         <div class="brand-emblem light-interactive" title="CV6 online helper">
@@ -30,9 +27,9 @@
         <div class="brand-copy">
           <div class="brand-title-row">
             <h1 class="brand-title">CV6 online helper</h1>
-            <span class="brand-edition">IPv6 · VPS 中继</span>
+            <span class="brand-edition" data-i18n="brandEdition">IPv6 · VPS 中继</span>
           </div>
-          <p class="brand-sub">第一步：IPv6/P2P 直连 或 自定义 VPS 中继联通测速（至少 2 人在线） → 第二步：解锁文明6联机辅助</p>
+          <p class="brand-sub" data-i18n="brandSub">第一步：IPv6/P2P 或 VPS 中继联通 → 第二步：文明6 联机辅助</p>
         </div>
       </div>
 
@@ -40,181 +37,175 @@
         <div id="badge-ipv6" class="status-pill" data-tone="neutral">
           <span class="status-dot"></span>
           <span class="status-label">IPv6</span>
-          <span class="status-val">检测中...</span>
+          <span class="status-val" data-i18n="checking">检测中...</span>
         </div>
         <div id="badge-node" class="status-pill" data-tone="neutral">
           <span class="status-dot"></span>
-          <span class="status-label">节点</span>
-          <span class="status-val">未启动</span>
+          <span class="status-label" data-i18n="badgeNode">节点</span>
+          <span class="status-val" data-i18n="notStarted">未启动</span>
         </div>
         <div id="badge-online" class="status-pill" data-tone="neutral">
           <span class="status-dot"></span>
-          <span class="status-label">在线</span>
+          <span class="status-label" data-i18n="badgeOnline">在线</span>
           <span class="status-val">0 人</span>
         </div>
         <div id="badge-civ6" class="status-pill" data-tone="neutral">
           <span class="status-dot"></span>
-          <span class="status-label">文明6</span>
-          <span class="status-val">未运行</span>
+          <span class="status-label" data-i18n="badgeCiv6">文明6</span>
+          <span class="status-val" data-i18n="notRunning">未运行</span>
         </div>
-        <button id="theme-toggle" class="icon-pill light-interactive" type="button" title="切换柔光晨曦 / 柔光暮夜材质">
+        <button id="lang-toggle" class="icon-pill lang-pill light-interactive" type="button" data-i18n-title="langToggleTitle" title="切换中英文 / Switch Language">
+          <span class="lang-opt is-active" data-lang-opt="zh">中</span>
+          <span class="lang-sep">/</span>
+          <span class="lang-opt" data-lang-opt="en">EN</span>
+        </button>
+        <button id="theme-toggle" class="icon-pill light-interactive" type="button" data-i18n-title="themeToggleTitle" title="切换柔光晨曦 / 柔光暮夜材质">
           <span id="theme-icon" class="theme-icon" aria-hidden="true">☀</span>
           <span id="theme-label">晨曦</span>
         </button>
       </div>
     </header>
 
-    <!-- Strict Two-Step Floating Dock -->
-    <nav class="step-dock glass-track" aria-label="联机步骤">
+    <nav class="step-dock glass-track" aria-label="Steps">
       <div id="step-thumb" class="seg-thumb"></div>
       <button id="tab-btn-step1" class="step-tab is-active light-interactive" type="button" data-step="step1">
         <span class="step-num">01</span>
         <span class="step-text">
-          <strong>第一步 · 联机联通</strong>
-          <small>IPv6/P2P 直连 · 自定义 VPS 中继</small>
+          <strong data-i18n="step1Title">第一步 · 联机联通</strong>
+          <small data-i18n="step1Sub">IPv6/P2P 直连 · 自定义 VPS 中继</small>
         </span>
       </button>
       <button id="tab-btn-step2" class="step-tab is-locked light-interactive" type="button" data-step="step2">
         <span class="step-num">02</span>
         <span class="step-text">
-          <strong>第二步 · 文明6 联机辅助</strong>
+          <strong data-i18n="step2Title">第二步 · 文明6 联机辅助</strong>
           <small id="step2-tab-sub">🔒 待第一步连通解锁</small>
         </span>
         <span id="step2-lock-chip" class="lock-chip">未解锁</span>
       </button>
     </nav>
 
-    <!-- Main Step Content -->
     <main class="stage">
-      <!-- ==================== STEP 1 ==================== -->
       <section id="view-step1" class="step-view is-active">
-        <!-- Card 1: Local Node -->
         <div class="glass-card card-node">
           <div class="card-head compact">
             <div class="card-title-wrap">
               <span class="card-index">1</span>
-              <h2 class="card-title">本机联机节点</h2>
+              <h2 class="card-title" data-i18n="card1Title">本机联机节点</h2>
             </div>
             <div class="node-actions">
               <button id="btn-start-node" class="glass-btn btn-accent light-interactive" type="button">
                 <span class="btn-glow-dot"></span>
-                <span>启动节点</span>
+                <span data-i18n="btnStartNode">启动节点</span>
               </button>
               <button id="btn-stop-node" class="glass-btn btn-soft btn-danger-soft light-interactive" type="button" disabled>
-                <span>停止</span>
+                <span data-i18n="btnStop">停止</span>
               </button>
             </div>
           </div>
 
           <div class="node-grid">
             <div class="field-group field-role">
-              <label class="field-label">角色</label>
+              <label class="field-label" data-i18n="lblRole">角色</label>
               <div id="role-seg" class="mini-seg glass-track-sm">
                 <div id="role-thumb" class="seg-thumb-sm"></div>
-                <button class="mini-seg-btn light-interactive" type="button" data-role="host">房主</button>
-                <button class="mini-seg-btn is-active light-interactive" type="button" data-role="client">加入者</button>
+                <button class="mini-seg-btn light-interactive" type="button" data-role="host" data-i18n="roleHost">房主</button>
+                <button class="mini-seg-btn is-active light-interactive" type="button" data-role="client" data-i18n="roleClient">加入者</button>
               </div>
             </div>
 
             <div class="field-group field-nick">
-              <label class="field-label" for="input-nickname">昵称</label>
-              <input id="input-nickname" class="glass-input" type="text" maxlength="32" placeholder="输入游戏昵称" autocomplete="off" />
+              <label class="field-label" for="input-nickname" data-i18n="lblNickname">昵称</label>
+              <input id="input-nickname" class="glass-input" type="text" maxlength="32" data-i18n-placeholder="phNickname" placeholder="输入游戏昵称" autocomplete="off" />
             </div>
 
             <div class="field-group field-port">
-              <label class="field-label" for="input-port">UDP 端口</label>
+              <label class="field-label" for="input-port" data-i18n="lblPort">UDP 端口</label>
               <input id="input-port" class="glass-input mono" type="text" maxlength="6" placeholder="38666" autocomplete="off" />
             </div>
 
             <div class="field-group field-key">
-              <label class="field-label" for="input-room-key">房间口令</label>
-              <input id="input-room-key" class="glass-input mono" type="text" maxlength="64" placeholder="双方填写相同口令" autocomplete="off" />
+              <label class="field-label" for="input-room-key" data-i18n="lblRoomKey">房间口令</label>
+              <input id="input-room-key" class="glass-input mono" type="text" maxlength="64" data-i18n-placeholder="phRoomKey" placeholder="双方填写相同口令" autocomplete="off" />
             </div>
           </div>
         </div>
 
-        <!-- Card 2: Connection Method -->
         <div class="glass-card card-method">
           <div class="card-head">
             <div class="card-title-wrap">
               <span class="card-index">2</span>
-              <h2 class="card-title">联机方式</h2>
+              <h2 class="card-title" data-i18n="card2Title">联机方式</h2>
               <div class="guide-pill-group">
                 <button id="btn-guide-p2p" class="guide-pill light-interactive" type="button" data-guide="p2p">
                   <span class="guide-pill-icon" aria-hidden="true">?</span>
-                  <span>P2P 使用说明</span>
+                  <span data-i18n="btnGuideP2P">P2P 使用说明</span>
                 </button>
                 <button id="btn-guide-vps" class="guide-pill light-interactive" type="button" data-guide="vps">
                   <span class="guide-pill-icon" aria-hidden="true">?</span>
-                  <span>VPS 使用说明</span>
+                  <span data-i18n="btnGuideVPS">VPS 使用说明</span>
                 </button>
               </div>
             </div>
             <div id="mode-seg" class="mode-seg glass-track-sm">
               <div id="mode-thumb" class="seg-thumb-sm"></div>
-              <button class="mode-seg-btn is-active light-interactive" type="button" data-mode="p2p_ipv6">
-                方式一 · IPv6 / P2P 直连
-              </button>
-              <button class="mode-seg-btn light-interactive" type="button" data-mode="relay">
-                方式二 · 自定义 VPS 中继
-              </button>
+              <button class="mode-seg-btn is-active light-interactive" type="button" data-mode="p2p_ipv6" data-i18n="modeP2P">方式一 · IPv6 / P2P 直连</button>
+              <button class="mode-seg-btn light-interactive" type="button" data-mode="relay" data-i18n="modeRelay">方式二 · 自定义 VPS 中继</button>
             </div>
           </div>
 
           <div class="sub-glass-well">
-            <!-- Panel A: IPv6 / P2P -->
             <div id="panel-p2p" class="mode-panel is-active">
               <div class="form-row">
-                <label class="row-label" for="input-adv-addr">本机对外地址</label>
+                <label class="row-label" for="input-adv-addr" data-i18n="lblAdvAddr">本机对外地址</label>
                 <div class="combo-wrap" id="combo-addr">
-                  <input id="input-adv-addr" class="glass-input mono" type="text" placeholder="选择或输入本机 IPv6 / IPv4 地址" autocomplete="off" />
-                  <button class="combo-trigger light-interactive" type="button" aria-label="选择地址">▾</button>
+                  <input id="input-adv-addr" class="glass-input mono" type="text" data-i18n-placeholder="phAdvAddr" placeholder="选择或输入本机 IPv6 / IPv4 地址" autocomplete="off" />
+                  <button class="combo-trigger light-interactive" type="button" aria-label="Select address">▾</button>
                   <div class="combo-menu glass-popover" role="listbox"></div>
                 </div>
                 <div class="row-actions">
-                  <button id="btn-refresh-net" class="glass-btn btn-soft light-interactive" type="button">刷新地址</button>
-                  <button id="btn-stun-probe" class="glass-btn btn-soft light-interactive" type="button">STUN 公网检测</button>
+                  <button id="btn-refresh-net" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnRefreshNet">刷新地址</button>
+                  <button id="btn-stun-probe" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnStun">STUN 公网检测</button>
                 </div>
               </div>
 
               <div class="form-row">
-                <label class="row-label" for="input-invite-code">我的连接码</label>
+                <label class="row-label" for="input-invite-code" data-i18n="lblInviteCode">我的连接码</label>
                 <input id="input-invite-code" class="glass-input mono readonly-pill" type="text" readonly value="启动本机节点后自动生成连接码" />
                 <div class="row-actions">
-                  <button id="btn-copy-invite" class="glass-btn btn-soft light-interactive" type="button">复制我的连接码</button>
+                  <button id="btn-copy-invite" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnCopyInvite">复制我的连接码</button>
                 </div>
               </div>
 
               <div class="form-row">
-                <label class="row-label" for="input-peer-addr">对方连接码 / IP</label>
-                <input id="input-peer-addr" class="glass-input mono" type="text" placeholder="粘贴好友的 c6p2:// 连接码，或输入 [IPv6]:端口 / IPv4:端口" autocomplete="off" />
+                <label class="row-label" for="input-peer-addr" data-i18n="lblPeerAddr">对方连接码 / IP</label>
+                <input id="input-peer-addr" class="glass-input mono" type="text" data-i18n-placeholder="phPeerAddr" placeholder="粘贴好友的 c6p2:// 连接码，或输入 [IPv6]:端口 / IPv4:端口" autocomplete="off" />
                 <div class="row-actions">
-                  <button id="btn-add-peer" class="glass-btn btn-accent light-interactive" type="button">添加并连接 / 打洞</button>
+                  <button id="btn-add-peer" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnAddPeer">添加并连接 / 打洞</button>
                 </div>
               </div>
             </div>
 
-            <!-- Panel B: Custom VPS Relay -->
             <div id="panel-relay" class="mode-panel">
               <div class="relay-row">
                 <div class="relay-node-col">
-                  <label class="row-label" for="input-et-node">自定义 VPS 节点</label>
+                  <label class="row-label" for="input-et-node" data-i18n="lblVpsNode">自定义 VPS 节点</label>
                   <div class="vps-input-row">
                     <div class="combo-wrap" id="combo-et-node">
-                      <input id="input-et-node" class="glass-input mono" type="text" placeholder="点击「+ 添加 VPS」或输入 tcp://你的VPS:11010" autocomplete="off" />
-                      <button class="combo-trigger light-interactive" type="button" aria-label="选择已保存的 VPS 节点">▾</button>
+                      <input id="input-et-node" class="glass-input mono" type="text" data-i18n-placeholder="phVpsNode" placeholder="点击「+ 添加 VPS」或输入 tcp://你的VPS:11010" autocomplete="off" />
+                      <button class="combo-trigger light-interactive" type="button" aria-label="Select saved VPS node">▾</button>
                       <div class="combo-menu glass-popover" role="listbox"></div>
                     </div>
-                    <button id="btn-open-add-vps" class="glass-btn btn-soft light-interactive" type="button" title="添加并保存自定义 VPS 节点">+ 添加 VPS</button>
+                    <button id="btn-open-add-vps" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnAddVps" data-i18n-title="titleAddVps" title="添加并保存自定义 VPS 节点">+ 添加 VPS</button>
                   </div>
                 </div>
                 <div class="relay-room-col">
-                  <label class="row-label" for="input-et-room">房间名</label>
+                  <label class="row-label" for="input-et-room" data-i18n="lblRoomName">房间名</label>
                   <input id="input-et-room" class="glass-input mono" type="text" maxlength="64" placeholder="civ6-room" autocomplete="off" />
                 </div>
                 <div class="row-actions">
-                  <button id="btn-et-connect" class="glass-btn btn-accent light-interactive" type="button">连接 VPS 房间</button>
-                  <button id="btn-et-disconnect" class="glass-btn btn-soft btn-danger-soft light-interactive" type="button" disabled>断开</button>
+                  <button id="btn-et-connect" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnConnectVps">连接 VPS 房间</button>
+                  <button id="btn-et-disconnect" class="glass-btn btn-soft btn-danger-soft light-interactive" type="button" disabled data-i18n="btnDisconnect">断开</button>
                 </div>
               </div>
 
@@ -226,17 +217,16 @@
           </div>
         </div>
 
-        <!-- Card 3: Online Members & Connectivity Verification -->
         <div class="glass-card card-peers">
           <div class="card-head compact">
             <div class="card-title-wrap">
               <span class="card-index">3</span>
-              <h2 class="card-title">在线成员与连通测试</h2>
-              <span class="card-subtitle-pill">至少 2 人在线且测试通过后解锁第二步</span>
+              <h2 class="card-title" data-i18n="card3Title">在线成员与连通测试</h2>
+              <span class="card-subtitle-pill" data-i18n="card3Sub">至少 2 人在线且测试通过后解锁第二步</span>
             </div>
             <div class="row-actions">
-              <button id="btn-test-peer" class="glass-btn btn-accent light-interactive" type="button">测试选中连接</button>
-              <button id="btn-remove-peer" class="glass-btn btn-soft light-interactive" type="button">移除选中</button>
+              <button id="btn-test-peer" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnTestPeer">测试选中连接</button>
+              <button id="btn-remove-peer" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnRemovePeer">移除选中</button>
             </div>
           </div>
 
@@ -244,49 +234,46 @@
             <table class="peer-table">
               <thead>
                 <tr>
-                  <th style="width:9.5%">昵称</th>
-                  <th style="width:6%">角色</th>
-                  <th style="width:10.5%">连接方式</th>
-                  <th style="width:17.5%">对方地址 / 节点</th>
-                  <th style="width:8.5%">在线状态</th>
-                  <th style="width:6.5%">延迟</th>
-                  <th style="width:5%">丢包</th>
-                  <th style="width:12%">对方文明6</th>
-                  <th style="width:14.5%">连通测试</th>
-                  <th style="width:10%">虚拟IP</th>
+                  <th style="width:9.5%" data-i18n="thNick">昵称</th>
+                  <th style="width:6%" data-i18n="thRole">角色</th>
+                  <th style="width:10.5%" data-i18n="thTransport">连接方式</th>
+                  <th style="width:17.5%" data-i18n="thEndpoint">对方地址 / 节点</th>
+                  <th style="width:8.5%" data-i18n="thStatus">在线状态</th>
+                  <th style="width:6.5%" data-i18n="thRtt">延迟</th>
+                  <th style="width:5%" data-i18n="thLoss">丢包</th>
+                  <th style="width:12%" data-i18n="thCiv6">对方文明6</th>
+                  <th style="width:14.5%" data-i18n="thTest">连通测试</th>
+                  <th style="width:10%" data-i18n="thFakeIp">虚拟IP</th>
                 </tr>
               </thead>
               <tbody id="peer-tbody"></tbody>
             </table>
             <div id="peer-empty" class="peer-empty">
               <div class="empty-orb"></div>
-              <p>暂无联机成员 · 启动节点后通过上方「IPv6/P2P 直连」或「自定义 VPS 中继」添加好友</p>
+              <p data-i18n="peerEmpty">暂无联机成员 · 启动节点后通过上方「IPv6/P2P 直连」或「自定义 VPS 中继」添加好友</p>
             </div>
           </div>
 
-          <!-- Gate Status Banner -->
           <div id="gate-banner" class="gate-banner" data-unlocked="false">
             <div class="gate-copy">
               <span class="gate-indicator"></span>
               <span id="gate-reason">请先启动本机联机节点，再与好友建立连接。</span>
             </div>
             <button id="btn-goto-step2" class="glass-btn btn-accent btn-step2-cta light-interactive" type="button" disabled>
-              <span>进入第二步 · 文明6 联机辅助</span>
+              <span data-i18n="btnGotoStep2">进入第二步 · 文明6 联机辅助</span>
               <span class="arrow-icon">→</span>
             </button>
           </div>
         </div>
       </section>
 
-      <!-- ==================== STEP 2 ==================== -->
       <section id="view-step2" class="step-view">
-        <!-- Card 1: Pre-flight 4-Tile Bento Grid -->
         <div class="glass-card card-preflight">
           <div class="card-head compact">
             <div class="card-title-wrap">
               <span class="card-index">1</span>
-              <h2 class="card-title">联机状态检查</h2>
-              <span class="card-subtitle-pill">需至少 2 人在线且连通测试通过</span>
+              <h2 class="card-title" data-i18n="s2Card1Title">联机状态检查</h2>
+              <span class="card-subtitle-pill" data-i18n="s2Card1Sub">需至少 2 人在线且连通测试通过</span>
             </div>
           </div>
 
@@ -294,7 +281,7 @@
             <div class="bento-tile" id="pf-tile-node" data-ok="false">
               <div class="bento-label">
                 <span class="status-dot"></span>
-                <span>本机节点</span>
+                <span data-i18n="pfLocalNode">本机节点</span>
               </div>
               <div id="pf-node-val" class="bento-val mono">尚未启动</div>
             </div>
@@ -302,7 +289,7 @@
             <div class="bento-tile" id="pf-tile-peer" data-ok="false">
               <div class="bento-label">
                 <span class="status-dot"></span>
-                <span>在线与测试</span>
+                <span data-i18n="pfOnlineTest">在线与测试</span>
               </div>
               <div id="pf-peer-val" class="bento-val mono">共 0 人在线（未满足开启条件）</div>
             </div>
@@ -310,7 +297,7 @@
             <div class="bento-tile" id="pf-tile-local-civ6" data-ok="false">
               <div class="bento-label">
                 <span class="status-dot"></span>
-                <span>本机文明6</span>
+                <span data-i18n="pfLocalCiv6">本机文明6</span>
               </div>
               <div id="pf-local-civ6-val" class="bento-val mono">未检测到文明6进程</div>
             </div>
@@ -318,19 +305,18 @@
             <div class="bento-tile" id="pf-tile-remote-civ6" data-ok="false">
               <div class="bento-label">
                 <span class="status-dot"></span>
-                <span>对端文明6</span>
+                <span data-i18n="pfRemoteCiv6">对端文明6</span>
               </div>
               <div id="pf-remote-civ6-val" class="bento-val mono">等待对端在线同步状态</div>
             </div>
           </div>
         </div>
 
-        <!-- Card 2: Civ6 Helper Controls -->
         <div class="glass-card card-bridge-ctrl">
           <div class="card-head compact">
             <div class="card-title-wrap">
               <span class="card-index">2</span>
-              <h2 class="card-title">文明6 联机辅助控制</h2>
+              <h2 class="card-title" data-i18n="s2Card2Title">文明6 联机辅助控制</h2>
             </div>
             <div id="bridge-status-pill" class="bridge-pill" data-active="false">
               <span class="status-dot"></span>
@@ -338,9 +324,7 @@
             </div>
           </div>
 
-          <p id="civ6-role-desc" class="helper-note role-desc">
-            当前角色：加入者。选择已连通测试通过的房主节点并启动辅助后，回文明6「多人游戏 → 局域网」刷新即可看到房间并直接加入。
-          </p>
+          <p id="civ6-role-desc" class="helper-note role-desc"></p>
 
           <div class="form-row step2-host-row">
             <label id="target-host-label" class="row-label" for="select-target-host">目标房主节点</label>
@@ -349,7 +333,7 @@
               <span class="select-chevron">▾</span>
             </div>
             <div class="row-actions">
-              <button id="btn-probe-room" class="glass-btn btn-soft light-interactive" type="button" disabled>探测房主文明6房间</button>
+              <button id="btn-probe-room" class="glass-btn btn-soft light-interactive" type="button" disabled data-i18n="btnProbeRoom">探测房主文明6房间</button>
             </div>
           </div>
 
@@ -359,69 +343,63 @@
               <span id="btn-start-bridge-text">启动加入者联机辅助</span>
             </button>
             <button id="btn-stop-bridge" class="glass-btn btn-soft btn-danger-soft btn-lg light-interactive" type="button" disabled>
-              <span>停止辅助</span>
+              <span data-i18n="btnStopBridge">停止辅助</span>
             </button>
           </div>
         </div>
 
-        <!-- Card 3: Live Civ6 Traffic Telemetry -->
         <div class="glass-card card-telemetry">
           <div class="card-head compact">
             <div class="card-title-wrap">
               <span class="card-index">3</span>
-              <h2 class="card-title">实时联机流量与诊断</h2>
+              <h2 class="card-title" data-i18n="s2Card3Title">实时联机流量与诊断</h2>
             </div>
           </div>
 
           <div class="telemetry-grid">
             <div class="telemetry-tile">
-              <span class="tele-caption">62900 房间发现</span>
+              <span class="tele-caption" data-i18n="teleDisc">62900 房间发现</span>
               <div id="stat-disc" class="tele-value mono">请求 0 / 回包 0</div>
             </div>
             <div class="telemetry-tile">
-              <span class="tele-caption">62056 会话发送</span>
+              <span class="tele-caption" data-i18n="teleTx">62056 会话发送</span>
               <div id="stat-tx" class="tele-value mono">0 包 (0 B)</div>
             </div>
             <div class="telemetry-tile">
-              <span class="tele-caption">62056 会话接收</span>
+              <span class="tele-caption" data-i18n="teleRx">62056 会话接收</span>
               <div id="stat-rx" class="tele-value mono">0 包 (0 B)</div>
             </div>
           </div>
 
           <div class="activity-strip">
-            <span class="activity-tag">状态</span>
+            <span class="activity-tag" data-i18n="activityTag">状态</span>
             <span id="bridge-activity-text">已通过第一步连接验证，可以开启文明6联机辅助。</span>
           </div>
 
-          <p class="helper-note">
-            使用要点：① 房主在文明6创建「局域网」房间并点「启动房主联机桥接」；② 加入者选择已通过测试的房主并点「启动加入者联机辅助」；③ 可先点「探测房主文明6房间」确认收到房间信息，再切回文明6局域网刷新加入。
-          </p>
+          <p class="helper-note" data-i18n="s2Tips">使用要点：① 房主在文明6创建「局域网」房间并点「启动房主联机桥接」；② 加入者选择已通过测试的房主并点「启动加入者联机辅助」；③ 可先点「探测房主文明6房间」确认收到房间信息，再切回文明6局域网刷新加入。</p>
         </div>
       </section>
     </main>
 
-    <!-- Bottom Frosted Smoked-Glass Log Console -->
     <section id="log-dock" class="glass-card log-dock" data-collapsed="false">
       <div class="log-head">
         <div class="log-title-wrap">
           <span class="log-indicator"></span>
-          <h3 class="log-title">运行日志</h3>
+          <h3 class="log-title" data-i18n="logTitle">运行日志</h3>
           <span id="log-count" class="log-count mono">0</span>
         </div>
         <div class="log-actions">
           <button id="btn-toggle-log" class="glass-btn btn-xs btn-soft light-interactive" type="button">收起</button>
-          <button id="btn-copy-log" class="glass-btn btn-xs btn-soft light-interactive" type="button">复制日志</button>
-          <button id="btn-clear-log" class="glass-btn btn-xs btn-soft light-interactive" type="button">清空</button>
+          <button id="btn-copy-log" class="glass-btn btn-xs btn-soft light-interactive" type="button" data-i18n="btnCopyLog">复制日志</button>
+          <button id="btn-clear-log" class="glass-btn btn-xs btn-soft light-interactive" type="button" data-i18n="btnClearLog">清空</button>
         </div>
       </div>
       <div id="log-body" class="log-body mono" role="log" aria-live="polite"></div>
     </section>
   </div>
 
-  <!-- Floating Glass Toast Stack -->
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
 
-  <!-- HyperOS 4 Frosted Glass P2P & VPS Usage Guide Modal -->
   <div id="guide-modal-backdrop" class="modal-backdrop" hidden>
     <div id="guide-modal-dialog" class="glass-card modal-card guide-modal-card" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
       <div class="guide-modal-top">
@@ -431,135 +409,60 @@
         </div>
         <div id="guide-seg" class="guide-seg glass-track-sm">
           <div id="guide-thumb" class="seg-thumb-sm"></div>
-          <button class="guide-seg-btn is-active light-interactive" type="button" data-guide-tab="p2p">P2P 使用说明</button>
-          <button class="guide-seg-btn light-interactive" type="button" data-guide-tab="vps">VPS 使用说明</button>
+          <button class="guide-seg-btn is-active light-interactive" type="button" data-guide-tab="p2p" data-i18n="btnGuideP2P">P2P 使用说明</button>
+          <button class="guide-seg-btn light-interactive" type="button" data-guide-tab="vps" data-i18n="btnGuideVPS">VPS 使用说明</button>
         </div>
       </div>
 
       <div class="guide-scroll">
-        <!-- P2P Guide Panel -->
-        <div id="guide-panel-p2p" class="guide-panel is-active">
-          <div class="guide-callout">
-            <strong>适用场景：</strong>零服务器成本、延迟最低。适合双方（或房主端）拥有公网 IPv6，或处于普通家庭宽带（Cone NAT）可 UDP 打洞的网络环境。
-          </div>
-
-          <div class="guide-block">
-            <h4 class="guide-h4">快速联机步骤</h4>
-            <ol class="guide-steps">
-              <li><strong>配置身份并启动节点：</strong>房主在顶部选「房主」、好友选「加入者」，填写昵称与<strong>相同的房间口令</strong>（默认端口 <code>38666</code>），点击 <strong>启动节点</strong>。</li>
-              <li><strong>选择对外地址：</strong>顶部显示「IPv6 公网就绪」时，在「本机对外地址」优先选择 <code>[首选公网 IPv6]</code>；若没有公网 IPv6，可点击 <strong>STUN 公网检测</strong> 探测公网 IPv4 映射端口。</li>
-              <li><strong>互换连接码并打洞：</strong>点击 <strong>复制我的连接码</strong> 发给好友；双方都在「对方连接码 / IP」中粘贴对方连接码并点击 <strong>添加并连接 / 打洞</strong>（双方互填可同时双向打洞，穿透率更高）。</li>
-              <li><strong>连通测试解锁第二步：</strong>成员列表变为「在线」且在线人数 ≥ 2 后，选中好友点击 <strong>测试选中连接</strong>（校验延迟与 1150B 大包），通过后自动解锁 <strong>第二步 · 文明6 联机辅助</strong>。</li>
-            </ol>
-          </div>
-
-          <div class="guide-block">
-            <h4 class="guide-h4">常见问题排查</h4>
-            <ul class="guide-list">
-              <li><strong>一直显示「打洞连接中」：</strong>核对双方「房间口令」完全一致、双方均已添加对方地址，并在 Windows 防火墙弹窗中放行本程序 UDP 访问。</li>
-              <li><strong>仍无法直连：</strong>若双方均为对称 NAT、移动数据热点、校园网或严格企业网且无公网 IPv6，请切换至 <strong>方式二 · 自定义 VPS 中继</strong>。</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- VPS Guide Panel -->
-        <div id="guide-panel-vps" class="guide-panel">
-          <div class="guide-callout">
-            <strong>适用场景：</strong>无公网 IPv6、对称 NAT、校园网或跨运营商直连丢包严重时，通过自建云服务器（VPS）自动中继或辅助打洞，无需互换 IP 即可同房互见。
-          </div>
-
-          <div class="guide-block">
-            <h4 class="guide-h4">方案一 · EasyTier 自建 VPS 节点（推荐，默认端口 11010）</h4>
-            <p class="guide-desc">客户端已内置 EasyTier 无虚拟网卡核心，会优先尝试 P2P 打洞，打洞不通自动经 VPS 中继。请先在云服务器安全组与系统防火墙放行 <code>TCP / UDP 11010</code>。</p>
-            <div class="guide-cmd-box">
-              <div class="guide-cmd-label">Linux / VPS 启动命令（已下载 easytier-core）</div>
-              <div class="guide-cmd-row">
-                <code class="guide-cmd-code">./easytier-core --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010</code>
-                <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="./easytier-core --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010">复制</button>
-              </div>
-            </div>
-            <div class="guide-cmd-box">
-              <div class="guide-cmd-label">Docker 一键部署命令</div>
-              <div class="guide-cmd-row">
-                <code class="guide-cmd-code">docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010</code>
-                <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="docker run -d --name easytier --restart always --network host easytier/easytier:latest --no-tun -l tcp://0.0.0.0:11010 -l udp://0.0.0.0:11010">复制</button>
-              </div>
-            </div>
-            <p class="guide-desc">部署后点击 <strong>+ 添加 VPS</strong> → 类型选 <code>EasyTier VPS (11010)</code> → 地址填写 <code>tcp://你的VPS公网IP:11010</code>（也支持 <code>udp://</code> 或逗号分隔多个备用节点）。</p>
-          </div>
-
-          <div class="guide-block">
-            <h4 class="guide-h4">方案二 · 轻量 UDP 中继（civ6_relay_server，默认端口 38668）</h4>
-            <p class="guide-desc">零第三方依赖，仅需 Python 3 即可在 VPS 运行，同时支持 IPv4 / IPv6 客户端混合接入。请在云服务器安全组放行 <code>UDP 38668</code>。</p>
-            <div class="guide-cmd-box">
-              <div class="guide-cmd-label">上传 civ6_relay_server.py 与 civ6_p2p 目录到 VPS 后运行</div>
-              <div class="guide-cmd-row">
-                <code class="guide-cmd-code">python3 civ6_relay_server.py --port 38668</code>
-                <button class="glass-btn btn-xs btn-soft light-interactive guide-copy-btn" type="button" data-copy="python3 civ6_relay_server.py --port 38668">复制</button>
-              </div>
-            </div>
-            <p class="guide-desc">部署后点击 <strong>+ 添加 VPS</strong> → 类型选 <code>轻量 UDP 中继 (38668)</code> → 地址填写 <code>你的VPS公网IP:38668</code>（支持域名或 <code>[IPv6]:38668</code>）。</p>
-          </div>
-
-          <div class="guide-block">
-            <h4 class="guide-h4">客户端连接步骤</h4>
-            <ol class="guide-steps">
-              <li>房主在顶部选「房主」、好友选「加入者」，填写<strong>相同的「房间口令」</strong>。</li>
-              <li>在「方式二 · 自定义 VPS 中继」中选中同一自建 VPS 节点并填写<strong>相同的「房间名」</strong>，点击 <strong>连接 VPS 房间</strong>。</li>
-              <li>待成员列表出现好友并显示「在线」后，点击 <strong>测试选中连接</strong>，测试通过即可进入第二步开启文明 6 联机辅助。</li>
-            </ol>
-          </div>
-        </div>
+        <div id="guide-panel-p2p" class="guide-panel is-active"></div>
+        <div id="guide-panel-vps" class="guide-panel"></div>
       </div>
 
       <div class="modal-actions">
-        <button id="guide-modal-close" class="glass-btn btn-accent light-interactive" type="button">我知道了</button>
+        <button id="guide-modal-close" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnGotIt">我知道了</button>
       </div>
     </div>
   </div>
 
-  <!-- HyperOS 4 Frosted Glass Add VPS Node Modal -->
   <div id="vps-modal-backdrop" class="modal-backdrop" hidden>
     <div id="vps-modal-dialog" class="glass-card modal-card vps-modal-card" role="dialog" aria-modal="true" aria-labelledby="vps-modal-title">
       <div class="modal-head">
         <span class="modal-icon" data-level="info">+</span>
-        <h3 id="vps-modal-title" class="modal-title">添加自定义 VPS 节点</h3>
+        <h3 id="vps-modal-title" class="modal-title" data-i18n="vpsModalTitle">添加自定义 VPS 节点</h3>
       </div>
 
       <div class="vps-form">
         <div class="field-group">
-          <label class="field-label">中继节点类型</label>
+          <label class="field-label" data-i18n="vpsKindLabel">中继节点类型</label>
           <div id="vps-kind-seg" class="vps-kind-seg glass-track-sm">
             <div id="vps-kind-thumb" class="seg-thumb-sm"></div>
-            <button class="vps-kind-btn is-active light-interactive" type="button" data-kind="easytier">EasyTier VPS (11010)</button>
-            <button class="vps-kind-btn light-interactive" type="button" data-kind="udp_relay">轻量 UDP 中继 (38668)</button>
+            <button class="vps-kind-btn is-active light-interactive" type="button" data-kind="easytier" data-i18n="vpsKindET">EasyTier VPS (11010)</button>
+            <button class="vps-kind-btn light-interactive" type="button" data-kind="udp_relay" data-i18n="vpsKindUDP">轻量 UDP 中继 (38668)</button>
           </div>
         </div>
 
         <div class="field-group">
-          <label class="field-label" for="vps-input-name">节点备注名（选填）</label>
-          <input id="vps-input-name" class="glass-input" type="text" maxlength="40" placeholder="例如：香港轻量 VPS / 东京自建节点" autocomplete="off" />
+          <label class="field-label" for="vps-input-name" data-i18n="vpsNameLabel">节点备注名（选填）</label>
+          <input id="vps-input-name" class="glass-input" type="text" maxlength="40" data-i18n-placeholder="phVpsName" placeholder="例如：香港轻量 VPS / 东京自建节点" autocomplete="off" />
         </div>
 
         <div class="field-group">
-          <label class="field-label" for="vps-input-address">VPS 节点地址</label>
+          <label class="field-label" for="vps-input-address" data-i18n="vpsAddrLabel">VPS 节点地址</label>
           <input id="vps-input-address" class="glass-input mono" type="text" placeholder="tcp://1.2.3.4:11010 或 udp://vps.example.com:11010" autocomplete="off" />
-          <p id="vps-addr-hint" class="vps-field-hint">
-            支持 <code>tcp://ip:11010</code>、<code>udp://ip:11010</code>、<code>ip:11010</code>，或多个备用 VPS 用逗号分隔；未填端口默认 11010。
-          </p>
+          <p id="vps-addr-hint" class="vps-field-hint"></p>
         </div>
 
         <div id="vps-form-error" class="vps-form-error" hidden></div>
       </div>
 
       <div class="modal-actions">
-        <button id="vps-modal-cancel" class="glass-btn btn-soft light-interactive" type="button">取消</button>
-        <button id="vps-modal-save" class="glass-btn btn-accent light-interactive" type="button">保存并选中</button>
+        <button id="vps-modal-cancel" class="glass-btn btn-soft light-interactive" type="button" data-i18n="btnCancel">取消</button>
+        <button id="vps-modal-save" class="glass-btn btn-accent light-interactive" type="button" data-i18n="btnSaveSelect">保存并选中</button>
       </div>
     </div>
   </div>
 
-  <!-- HyperOS 4 Frosted Glass Modal Dialog -->
   <div id="modal-backdrop" class="modal-backdrop" hidden>
     <div id="modal-dialog" class="glass-card modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-head">
@@ -575,7 +478,7 @@
   </div>
 
   <script>
-/*__INLINE_JS__*/
+__INLINE_JS__
   </script>
 </body>
 </html>

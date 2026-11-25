@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Lightweight pure-Python UDP Relay Server for Civ6 P2P Helper.
-
-Features:
-  - Dual-stack IPv6 + IPv4 UDP listener (supports both IPv6 and IPv4 clients simultaneously!)
-  - Room isolation by (room_id, room_tag) so multiple friend groups safely share one relay server
-  - Automatic room member presence broadcast (no need to exchange IP addresses!)
-  - Low-latency UDP datagram forwarding for P2P control, connectivity tests, and Civ6 62900/62056 packets
-  - Zero third-party dependencies (runs on Linux/Windows VPS with Python 3.8+)
-"""
-
 from __future__ import annotations
 
 import select
@@ -65,7 +52,6 @@ class RelayServerStats:
 
 
 class RelayServer:
-    """Dual-stack UDP relay server."""
 
     def __init__(
         self,
@@ -85,7 +71,6 @@ class RelayServer:
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
 
-        # (room_id, room_tag) -> {node_id: RelayClientEntry}
         self._rooms: dict[tuple[str, bytes], dict[str, RelayClientEntry]] = {}
         self._fwd_packets = 0
         self._fwd_bytes = 0
@@ -317,7 +302,6 @@ class RelayServer:
         elif changed_meta:
             self._broadcast_room_peers(rkey)
         else:
-            # Reply directly to registering client as keepalive ack
             pkt = pack_json_packet(
                 MsgType.RELAY_PEERS,
                 room_tag,
@@ -366,7 +350,6 @@ class RelayServer:
             target = members.get(dst_node_id)
             if sender is None or target is None:
                 return
-            # Refresh sender's NAT endpoint & last_seen
             sender.host = src_ip
             sender.port = src_port
             sender.last_seen = time.monotonic()

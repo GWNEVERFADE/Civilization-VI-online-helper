@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Windows Civilization VI process & UDP endpoint inspector.
-Preserves and extends the normal-user-mode mechanism from civ6-l3-discovery-helper
-(no admin, no drivers, no DLL injection, Python standard library only).
-"""
-
 from __future__ import annotations
 
 import ctypes

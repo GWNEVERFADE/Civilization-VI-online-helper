@@ -1,21 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-End-to-end automated tests for Civ6 IPv6 P2P Multiplayer Helper:
-  1. Protocol framing, room-key isolation, invite-code encode/decode (IPv6 & IPv4)
-  2. RFC 5389 STUN Binding Response parsing (IPv4 & IPv6 XOR-MAPPED-ADDRESS)
-  3. Dual-stack IPv6 P2P connectivity:
-     - Simultaneous hole-punching & direct connect over IPv6 (::1)
-     - Online status, RTT measurement, remote Civ6 status sync
-     - Active connectivity test (64B + 1200B MTU packets)
-     - Graceful BYE -> instant Offline status transition
-  4. Full simulated Civilization VI multiplayer over IPv6 P2P:
-     - Simulated Host Civ6 listening on 127.0.0.1:<disc_port> & 127.0.0.1:<sess_port>
-     - Simulated Client Civ6 opening ephemeral port, receiving 1104-byte room info from 127.0.127.1:<fake_disc_port>
-     - ClientCiv6Bridge.probe_host_room() verification
-     - Simulated Client Civ6 joining on 62056-style session port -> bidirectional game data over IPv6 P2P!
-"""
-
 from __future__ import annotations
 
 import ipaddress
@@ -80,13 +62,11 @@ class TestProtocolAndStun(unittest.TestCase):
         self.assertEqual(p6.role, "host")
         self.assertEqual(p6.room_key, "mykey")
 
-        # Raw IPv6 without brackets
         p_raw6 = parse_peer_input("2408:8207::abcd", default_port=38666)
         self.assertEqual(p_raw6.host, "2408:8207::abcd")
         self.assertEqual(p_raw6.port, 38666)
         self.assertEqual(p_raw6.ip_version, 6)
 
-        # IPv4:port
         p4 = parse_peer_input("192.168.1.50:40000")
         self.assertEqual(p4.host, "192.168.1.50")
         self.assertEqual(p4.port, 40000)
@@ -106,7 +86,6 @@ class TestProtocolAndStun(unittest.TestCase):
     def test_stun_ipv6_and_ipv4_xor_mapped_parse(self) -> None:
         _, tx_id = build_stun_binding_request()
 
-        # Construct IPv6 XOR-MAPPED-ADDRESS response for [240e:1234::5678]:45678
         target_v6 = ipaddress.IPv6Address("240e:1234::5678")
         target_port = 45678
         xport = target_port ^ (STUN_MAGIC_COOKIE >> 16)
@@ -119,7 +98,6 @@ class TestProtocolAndStun(unittest.TestCase):
         parsed = parse_stun_binding_response(resp)
         self.assertEqual(parsed, (tx_id, "240e:1234::5678", 45678))
 
-        # Construct IPv4 XOR-MAPPED-ADDRESS response for 1.2.3.4:38666
         target_v4 = ipaddress.IPv4Address("1.2.3.4")
         xport4 = 38666 ^ (STUN_MAGIC_COOKIE >> 16)
         xip4 = bytes(a ^ b for a, b in zip(target_v4.packed, struct.pack("!I", STUN_MAGIC_COOKIE)))
@@ -161,7 +139,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             self.assertTrue(host.is_ipv6_socket)
             self.assertTrue(client.is_ipv6_socket)
 
-            # Client connects to Host via IPv6 loopback [::1]
             peer = client.add_peer("::1", h_port, nickname="HostPC", role="host")
             deadline = time.monotonic() + 3.0
             while time.monotonic() < deadline:
@@ -179,7 +156,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             self.assertTrue(cp.remote_civ6_running)
             self.assertTrue(cp.remote_civ6_room_ready)
 
-            # Active connectivity & 1200B MTU test
             res = client.run_connectivity_test(peer.peer_key, count=5, timeout_s=2.0)
             self.assertTrue(res.passed, f"Test failed: {res.summary}")
             self.assertEqual(res.received, 5)
@@ -190,7 +166,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             assert cp_after is not None
             self.assertTrue(cp_after.verified)
 
-            # Host stops -> sends BYE -> Client sees Host go offline immediately
             host.stop()
             deadline = time.monotonic() + 2.0
             while time.monotonic() < deadline:
@@ -222,22 +197,16 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             host.stop()
 
     def test_full_civ6_discovery_and_session_over_ipv6_p2p(self) -> None:
-        """
-        Simulate complete Civilization VI LAN discovery (62900) and game session (62056)
-        between a Host Civ6 and a Client Civ6 across an IPv6 P2P tunnel!
-        """
-        # Use dedicated high ports so we never collide with a real running Civ6 instance
         sim_host_disc_port = _pick_free_udp_port()
         sim_host_sess_port = _pick_free_udp_port()
         sim_client_fake_disc_port = _pick_free_udp_port()
         sim_client_fake_sess_port = _pick_free_udp_port()
 
         stop_sim = threading.Event()
-        fake_room_pkt_1 = b"CIV6_ROOM_JSON_PART_1:" + (b"R" * 1082)  # 1104 bytes like real Civ6!
+        fake_room_pkt_1 = b"CIV6_ROOM_JSON_PART_1:" + (b"R" * 1082)
         fake_room_pkt_2 = b"CIV6_ROOM_JSON_PART_2:" + (b"S" * 500)
         host_sess_seen_from: list[tuple[str, int]] = []
 
-        # Simulated Host Civ6 process (listening on 127.0.0.1:sim_host_disc_port & sim_host_sess_port)
         sim_host_disc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sim_host_disc.bind(("127.0.0.1", sim_host_disc_port))
         sim_host_disc.settimeout(0.1)
@@ -261,7 +230,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
                 try:
                     sdata, saddr = sim_host_sess.recvfrom(4096)
                     host_sess_seen_from.append(saddr)
-                    # Host Civ6 replies back to peer's IP:port (which is 127.0.127.x:sim_host_sess_port)
                     sim_host_sess.sendto(b"HOST_ACK:" + sdata, saddr)
                 except socket.timeout:
                     pass
@@ -283,7 +251,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             client_node.start()
             peer = client_node.add_peer("::1", h_port, nickname="Host", role="host")
 
-            # Wait for P2P online
             deadline = time.monotonic() + 3.0
             while time.monotonic() < deadline:
                 cp = client_node.get_peer(peer.peer_key)
@@ -294,7 +261,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             test_res = client_node.run_connectivity_test(peer.peer_key, count=5, timeout_s=2.0)
             self.assertTrue(test_res.passed)
 
-            # Start Host & Client Civ6 bridges
             host_bridge = HostCiv6Bridge(
                 host_node,
                 target_host_ip="127.0.0.1",
@@ -315,13 +281,11 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             )
             client_bridge.start()
 
-            # 1. Verify probe_host_room() receives both simulated room info packets
             ok, pkt_cnt, total_bytes = client_bridge.probe_host_room(timeout_s=2.0)
             self.assertTrue(ok)
             self.assertEqual(pkt_cnt, 2)
             self.assertEqual(total_bytes, len(fake_room_pkt_1) + len(fake_room_pkt_2))
 
-            # 2. Verify Client Civ6 ephemeral port receives room info from 127.0.127.5:<fake_disc_port>
             sim_client_ephem = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sim_client_ephem.bind(("0.0.0.0", 0))
             ephem_port = sim_client_ephem.getsockname()[1]
@@ -336,12 +300,11 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             self.assertEqual(got_pkts[0][1], ("127.0.127.5", sim_client_fake_disc_port))
             self.assertEqual(got_pkts[1][0], fake_room_pkt_2)
 
-            # 3. Verify Client Civ6 joins using the discovered fake host IP (127.0.127.5) for 62056 session!
             sim_client_sess = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sim_client_sess.bind(("0.0.0.0", 0))
             sim_client_sess.settimeout(2.0)
 
-            join_pkt = b"RAKNET_JOIN_HELLO_" + (b"J" * 102)  # 120 bytes like real Civ6 join packet
+            join_pkt = b"RAKNET_JOIN_HELLO_" + (b"J" * 102)
             sim_client_sess.sendto(join_pkt, ("127.0.127.5", sim_client_fake_sess_port))
             reply, reply_addr = sim_client_sess.recvfrom(4096)
             self.assertEqual(reply, b"HOST_ACK:" + join_pkt)
@@ -350,7 +313,6 @@ class TestIPv6P2PAndCiv6Bridge(unittest.TestCase):
             self.assertTrue(host_sess_seen_from[0][0].startswith("127.0.127."))
             self.assertEqual(host_sess_seen_from[0][1], sim_host_sess_port)
 
-            # Check bridge stats
             c_stats = client_bridge.get_stats()
             h_stats = host_bridge.get_stats()
             self.assertGreaterEqual(c_stats.disc_resps, 2)
@@ -407,7 +369,6 @@ class TestServerRelayMode(unittest.TestCase):
             client.start()
             stranger.start()
 
-            # All connect to the same relay server WITHOUT knowing each other's IPs!
             host.connect_relay(f"[::1]:{rport}", "civ-room-a")
             client.connect_relay(f"127.0.0.1:{rport}", "civ-room-a")
             stranger.connect_relay(f"127.0.0.1:{rport}", "civ-room-a")
@@ -429,7 +390,7 @@ class TestServerRelayMode(unittest.TestCase):
             h_peers = host.list_peers()
             self.assertEqual(len(c_peers), 1)
             self.assertEqual(len(h_peers), 1)
-            self.assertEqual(len(stranger.list_peers()), 0)  # Isolated by room_key!
+            self.assertEqual(len(stranger.list_peers()), 0)
 
             hp = c_peers[0]
             self.assertEqual(hp.transport, "relay")
@@ -438,13 +399,11 @@ class TestServerRelayMode(unittest.TestCase):
             self.assertEqual(hp.status, "online")
             self.assertTrue(hp.remote_civ6_room_ready)
 
-            # Connectivity test (including 1150B large packet) through relay!
             res = client.run_connectivity_test(hp.peer_key, count=5, timeout_s=2.0)
             self.assertTrue(res.passed, f"Relay test failed: {res.summary}")
             self.assertEqual(res.received, 5)
             self.assertTrue(res.large_pkt_ok)
 
-            # Host disconnects from relay -> Client sees Host go offline immediately
             host.disconnect_relay()
             deadline = time.monotonic() + 2.0
             while time.monotonic() < deadline:
@@ -462,14 +421,13 @@ class TestServerRelayMode(unittest.TestCase):
             relay.stop()
 
     def test_full_civ6_discovery_and_session_over_relay_server(self) -> None:
-        """Simulate complete Civ6 62900 discovery + 62056 game session routed via RelayServer."""
         sim_host_disc_port = _pick_free_udp_port()
         sim_host_sess_port = _pick_free_udp_port()
         sim_client_fake_disc_port = _pick_free_udp_port()
         sim_client_fake_sess_port = _pick_free_udp_port()
 
         stop_sim = threading.Event()
-        fake_room_pkt = b"RELAY_CIV6_ROOM:" + (b"Z" * 1088)  # 1104 bytes
+        fake_room_pkt = b"RELAY_CIV6_ROOM:" + (b"Z" * 1088)
 
         sim_host_disc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sim_host_disc.bind(("127.0.0.1", sim_host_disc_port))
@@ -514,7 +472,6 @@ class TestServerRelayMode(unittest.TestCase):
             host_node.start()
             client_node.start()
 
-            # Mixed IPv6 + IPv4 clients meeting via the SAME relay server!
             host_node.connect_relay(f"[::1]:{rport}", "game99")
             client_node.connect_relay(f"127.0.0.1:{rport}", "game99")
 
@@ -549,13 +506,11 @@ class TestServerRelayMode(unittest.TestCase):
             )
             client_bridge.start()
 
-            # 1. Room probe via RelayServer
             ok, cnt, total_b = client_bridge.probe_host_room(timeout_s=2.0)
             self.assertTrue(ok)
             self.assertEqual(cnt, 1)
             self.assertEqual(total_b, len(fake_room_pkt))
 
-            # 2. Discovery injection to Client Civ6 ephemeral port via RelayServer
             sim_client_ephem = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sim_client_ephem.bind(("0.0.0.0", 0))
             ephem_port = sim_client_ephem.getsockname()[1]
@@ -566,7 +521,6 @@ class TestServerRelayMode(unittest.TestCase):
             self.assertEqual(got_room, fake_room_pkt)
             self.assertEqual(got_addr, ("127.0.127.9", sim_client_fake_disc_port))
 
-            # 3. 62056 game session packet round-trip via RelayServer
             sim_client_sess = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sim_client_sess.bind(("0.0.0.0", 0))
             sim_client_sess.settimeout(2.0)
@@ -600,36 +554,30 @@ class TestServerRelayMode(unittest.TestCase):
 
 class TestStep2GatePolicy(unittest.TestCase):
     def test_gate_requires_running_and_two_online_and_verified(self) -> None:
-        # 1. Node not running -> 0 online, locked
         g0 = evaluate_step2_gate(False, [])
         self.assertEqual(g0.total_online, 0)
         self.assertFalse(g0.can_enter_step2)
 
-        # 2. Node running alone -> 1 online (<2), locked
         g1 = evaluate_step2_gate(True, [])
         self.assertEqual(g1.total_online, 1)
         self.assertFalse(g1.can_enter_step2)
 
-        # 3. Peer connecting or offline -> still only 1 online, locked
         p_conn = PeerState(peer_key="[::1]:38666", host="::1", port=38666, ip_version=6, fake_ip="127.0.127.1", status="connecting", verified=True)
         g_conn = evaluate_step2_gate(True, [p_conn])
         self.assertEqual(g_conn.total_online, 1)
         self.assertFalse(g_conn.can_enter_step2)
 
-        # 4. 2 people online, but Step 1 connectivity test not passed yet -> locked
         p_unverified = PeerState(peer_key="[::1]:38666", host="::1", port=38666, ip_version=6, fake_ip="127.0.127.1", status="online", verified=False)
         g_unver = evaluate_step2_gate(True, [p_unverified])
         self.assertEqual(g_unver.total_online, 2)
         self.assertFalse(g_unver.can_enter_step2)
 
-        # 5. 2 people online AND verified -> unlocked!
         p_ok = PeerState(peer_key="[::1]:38666", host="::1", port=38666, ip_version=6, fake_ip="127.0.127.1", status="online", verified=True, nickname="HostA")
         g_ok = evaluate_step2_gate(True, [p_ok])
         self.assertEqual(g_ok.total_online, 2)
         self.assertTrue(g_ok.can_enter_step2)
         self.assertEqual(p_ok.transport_label(), "IPv6/P2P 直连")
 
-        # 6. Peer goes offline -> total_online drops back to 1 -> relocked!
         p_off = PeerState(peer_key="[::1]:38666", host="::1", port=38666, ip_version=6, fake_ip="127.0.127.1", status="offline", verified=True)
         g_off = evaluate_step2_gate(True, [p_off])
         self.assertEqual(g_off.total_online, 1)
@@ -641,13 +589,11 @@ class TestStep2GatePolicy(unittest.TestCase):
         app = Civ6P2PApp()
         try:
             app.update()
-            # Only 2 tabs (no virtual network discovery tab!)
             self.assertEqual(len(app.notebook.tabs()), 2)
             self.assertEqual(str(app.notebook.tab(app.tab_step2, "state")), "disabled")
             self.assertEqual(str(app.goto_step2_btn["state"]), "disabled")
             self.assertEqual(str(app.start_bridge_btn["state"]), "disabled")
 
-            # Simulate 2 people online + verified
             p_ok = PeerState(
                 peer_key="[::1]:38666",
                 host="::1",
@@ -665,7 +611,6 @@ class TestStep2GatePolicy(unittest.TestCase):
             self.assertEqual(str(app.goto_step2_btn["state"]), "normal")
             self.assertEqual(str(app.start_bridge_btn["state"]), "normal")
 
-            # Simulate peer going offline -> Step 2 locks again!
             p_off = p_ok.copy_snapshot()
             p_off.status = "offline"
             app._sync_target_host_combo([p_off])
@@ -693,7 +638,6 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
         )
 
     def test_live_easytier_no_tun_host_client_and_civ6_traffic(self) -> None:
-        """Full live integration test using bundled easytier-core.exe (--no-tun)."""
         exe = find_easytier_core()
         self.assertTrue(exe.is_file())
 
@@ -758,13 +702,6 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
             host_et.stop()
 
     def test_live_easytier_midgame_disconnect_rejoin_and_civ6_traffic(self) -> None:
-        """
-        Regression test for mid-game disconnect & rejoin over an EasyTier VPS node:
-          1. VPS EasyTier + Host (with active HostCiv6Bridge) + Client A play Civ6 (62900 & 62056)
-          2. Client A disconnects mid-game -> HostCiv6Bridge releases stale socket & stays running
-          3. Client A rejoins the SAME ongoing VPS session -> passes test, discovers room, exchanges 62056 traffic
-          4. Client B joins mid-game concurrently -> both A and B exchange live Civ6 62056 traffic!
-        """
         import subprocess
         import uuid
 
@@ -779,7 +716,6 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
         sim_host_disc_port = _pick_free_udp_port()
         sim_host_sess_port = _pick_free_udp_port()
 
-        # Simulated running Host Civ6 game
         stop_sim = threading.Event()
         fake_room_pkt = b"MIDGAME_CIV6_ROOM:" + (b"M" * 1086)
         sim_host_disc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -879,12 +815,10 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
             )
             cb.start()
 
-            # Verify 62900 room probe works mid-game
             ok, cnt, _ = cb.probe_host_room(timeout_s=2.0)
             self.assertTrue(ok, f"{nick} failed to probe ongoing Civ6 room")
             self.assertEqual(cnt, 1)
 
-            # Verify 62056 game session bidirectional traffic works
             sim_cli = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
                 sim_cli.bind(("0.0.0.0", 0))
@@ -911,10 +845,8 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
             host_bridge.start()
             time.sleep(1.0)
 
-            # Round 1: PlayerA joins & plays
             a1_et, a1_n, a1_cb = join_and_play("PlayerA", b"PLAYER_A_ROUND_1")
 
-            # Round 2: PlayerA disconnects mid-game!
             a1_cb.stop()
             a1_n.stop()
             a1_et.stop()
@@ -926,16 +858,13 @@ class TestEasyTierEmbeddedIntegration(unittest.TestCase):
                 time.sleep(0.1)
             self.assertEqual(len(host_bridge._peer_sess_socks), 0, "HostCiv6Bridge leaked stale session socket")
 
-            # Round 3: PlayerA REJOINS the ongoing game mid-session!
             a2 = join_and_play("PlayerA", b"PLAYER_A_REJOIN_MIDGAME")
             active_clients.append(a2)
 
-            # Host peer list should have pruned the stale offline PlayerA entry (no duplicate zombie!)
             host_peers_after = [p for p in host_node.list_peers() if p.nickname == "PlayerA"]
             self.assertEqual(len(host_peers_after), 1)
             self.assertEqual(host_peers_after[0].status, "online")
 
-            # Round 4: PlayerB joins mid-game while PlayerA is still connected!
             b1 = join_and_play("PlayerB", b"PLAYER_B_HOTJOIN_MIDGAME")
             active_clients.append(b1)
         finally:
@@ -964,12 +893,50 @@ class TestGlassGuiController(unittest.TestCase):
 
         html = load_glass_html()
         self.assertIn("CV6 online helper", html)
-        self.assertNotIn("/*__INLINE_CSS__*/", html)
-        self.assertNotIn("/*__INLINE_JS__*/", html)
+        self.assertNotIn("__INLINE_CSS__", html)
+        self.assertNotIn("__INLINE_JS__", html)
         self.assertNotIn("__APP_LOGO_DATA_URI__", html)
         self.assertIn("data:image/png;base64,", html)
         self.assertIn("backdrop-filter", html)
         self.assertIn("hyperLightBloom", html)
+        self.assertIn("lang-toggle", html)
+
+    def test_glass_controller_bilingual_lang_switch_and_persistence(self) -> None:
+        import tempfile
+        from civ6_p2p.glass_gui import GlassAppController
+        from civ6_p2p.vps_store import UiPrefsStore
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vps_file = Path(tmpdir) / "vps.json"
+            prefs_file = Path(tmpdir) / "ui_prefs.json"
+            ctrl = GlassAppController(start_bg_poller=False, vps_store_path=vps_file, prefs_path=prefs_file)
+            try:
+                st_zh = ctrl.get_state()
+                self.assertEqual(st_zh["lang"], "zh")
+                self.assertIn("未启动", st_zh["step2"]["bridge_status"])
+
+                res_en = ctrl.set_lang("en")
+                self.assertTrue(res_en["ok"])
+                self.assertEqual(res_en["lang"], "en")
+
+                st_en = ctrl.get_state()
+                self.assertEqual(st_en["lang"], "en")
+                self.assertEqual(st_en["step2"]["bridge_status"], "Not Started")
+                self.assertIn("Start your local node first", st_en["gate"]["reason"])
+                self.assertIn("Not Running", st_en["civ6_summary"])
+
+                reloaded = UiPrefsStore(path=prefs_file)
+                self.assertEqual(reloaded.lang, "en")
+
+                ctrl2 = GlassAppController(start_bg_poller=False, vps_store_path=vps_file, prefs_path=prefs_file)
+                try:
+                    self.assertEqual(ctrl2.get_state()["lang"], "en")
+                    ctrl2.set_lang("zh")
+                    self.assertEqual(ctrl2.get_state()["lang"], "zh")
+                finally:
+                    ctrl2.shutdown()
+            finally:
+                ctrl.shutdown()
 
     def test_glass_controller_two_step_gate_and_p2p_flow(self) -> None:
         import tempfile
@@ -1003,10 +970,8 @@ class TestGlassGuiController(unittest.TestCase):
 
                 st_online = ctrl.get_state()
                 self.assertEqual(st_online["gate"]["total_online"], 2)
-                # Still locked until connectivity test passes
                 self.assertFalse(st_online["gate"]["can_enter_step2"])
 
-                # Run connectivity test through controller
                 self.assertTrue(ctrl.test_peer(peer_key)["ok"])
                 deadline = time.monotonic() + 4.0
                 while time.monotonic() < deadline:
@@ -1035,15 +1000,12 @@ class TestGlassGuiController(unittest.TestCase):
             relay = RelayServer(listen_port=0)
             host_node = P2PNode(nickname="VpsHost", role="host", listen_port=0, room_key="vps-secret")
             try:
-                # 1. Empty by default (no public nodes)
                 self.assertEqual(ctrl.get_state()["vps_nodes"], [])
 
-                # 2. Add EasyTier VPS node (bare host auto-defaults port 11010 + tcp://)
                 r1 = ctrl.add_vps_node("香港节点", "hk.myvps.example", "easytier")
                 self.assertTrue(r1["ok"])
                 self.assertEqual(r1["node"]["address"], "tcp://hk.myvps.example:11010")
 
-                # 3. Add UDP Relay VPS node pointing to live local RelayServer
                 rport = relay.start()
                 host_node.start()
                 host_node.connect_relay(f"127.0.0.1:{rport}", "vps-civ-room")
@@ -1053,11 +1015,9 @@ class TestGlassGuiController(unittest.TestCase):
                 self.assertEqual(r2["node"]["address"], f"127.0.0.1:{rport}")
                 self.assertEqual(r2["node"]["kind"], "udp_relay")
 
-                # Verify persistence across reload
                 reloaded = VpsNodeStore(path=store_file).list_nodes()
                 self.assertEqual(len(reloaded), 2)
 
-                # Connect through custom UDP Relay VPS node
                 ctrl.start_node(role="client", nickname="VpsClient", port_text="0", room_key="vps-secret")
                 conn = ctrl.connect_easytier(r2["node"]["label"], "vps-civ-room")
                 self.assertTrue(conn["ok"])
@@ -1075,12 +1035,10 @@ class TestGlassGuiController(unittest.TestCase):
                 self.assertEqual(st["peers"][0]["nickname"], "VpsHost")
                 self.assertEqual(st["et_status_level"], "connected")
 
-                # Remove saved VPS node and verify removal persisted
                 ctrl.disconnect_easytier()
                 self.assertTrue(ctrl.remove_vps_node(r1["node"]["id"])["ok"])
                 self.assertEqual(len(VpsNodeStore(path=store_file).list_nodes()), 1)
 
-                # Rejoin the same running VPS UDP relay room mid-session!
                 conn2 = ctrl.connect_easytier(r2["node"]["label"], "vps-civ-room")
                 self.assertTrue(conn2["ok"])
                 deadline = time.monotonic() + 3.0

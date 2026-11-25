@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Binary UDP protocol & shareable invite-code codec for Civ6 IPv6 P2P Helper.
-
-Wire format (10-byte fixed header + payload):
-  [0:4]  MAGIC       = b"C6P2"
-  [4]    VERSION     = 1
-  [5]    MSG_TYPE    = MsgType (uint8)
-  [6:10] ROOM_TAG    = first 4 bytes of sha256("civ6-p2p-v1:" + room_key)
-  [10:]  PAYLOAD     = JSON (control frames) or compact binary (Civ6 frames)
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +11,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 MAGIC = b"C6P2"
 PROTO_VERSION = 1
 HEADER_FMT = "!4sBB4s"
-HEADER_SIZE = struct.calcsize(HEADER_FMT)  # 10 bytes
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
 
 DEFAULT_P2P_PORT = 38666
 DEFAULT_RELAY_PORT = 38668
@@ -46,7 +33,6 @@ class MsgType(IntEnum):
     CIV6_DISC_RESP = 0x11
     CIV6_SESSION = 0x12
 
-    # Relay Server protocol
     RELAY_REGISTER = 0x20
     RELAY_PEERS = 0x21
     RELAY_UNREGISTER = 0x22
@@ -69,7 +55,6 @@ def pack_json_packet(msg_type: MsgType, room_tag: bytes, data: dict) -> bytes:
 
 
 def unpack_packet(raw: bytes) -> tuple[MsgType, bytes, bytes] | None:
-    """Parse raw datagram. Returns (msg_type, room_tag, payload) or None if not ours."""
     if len(raw) < HEADER_SIZE:
         return None
     magic, version, msg_type_val, room_tag = struct.unpack_from(HEADER_FMT, raw, 0)
@@ -90,17 +75,12 @@ def unpack_json_payload(payload: bytes) -> dict | None:
         return None
 
 
-# --- Compact binary payloads for hot-path & active connectivity tests ---
-
-# TEST_REQ: test_id (u32), seq (u16), ts_ms (u64), followed by padding bytes
 TEST_REQ_FMT = "!IHQ"
 TEST_REQ_HDR_SIZE = struct.calcsize(TEST_REQ_FMT)
 
-# TEST_RESP: test_id (u32), seq (u16), ts_ms (u64), orig_len (u16)
 TEST_RESP_FMT = "!IHQH"
 TEST_RESP_HDR_SIZE = struct.calcsize(TEST_RESP_FMT)
 
-# CIV6_DISC_REQ / CIV6_DISC_RESP: client_ephem_port (u16), req_id (u16), raw_payload
 CIV6_DISC_FMT = "!HH"
 CIV6_DISC_HDR_SIZE = struct.calcsize(CIV6_DISC_FMT)
 
@@ -164,7 +144,6 @@ def pack_relay_forward(
 
 
 def unpack_relay_forward(payload: bytes) -> tuple[str, str, str, bytes] | None:
-    """Return (room_id, src_node_id, dst_node_id, inner_packet) or None."""
     try:
         idx = 0
         if idx + 1 > len(payload):
@@ -196,15 +175,6 @@ def unpack_relay_forward(payload: bytes) -> tuple[str, str, str, bytes] | None:
 
 
 def parse_server_address(text: str, default_port: int = DEFAULT_RELAY_PORT) -> tuple[str, int]:
-    """
-    Parse a relay server address supporting domain names, IPv4, and IPv6:
-      - relay.example.com:38668
-      - relay.example.com
-      - [240e::1]:38668
-      - 240e::1
-      - 1.2.3.4:38668
-      - 1.2.3.4
-    """
     raw = text.strip().replace("［", "[").replace("］", "]")
     if not raw:
         raise ValueError("中继服务器地址不能为空")
@@ -236,12 +206,8 @@ def parse_server_address(text: str, default_port: int = DEFAULT_RELAY_PORT) -> t
             raise ValueError("服务器地址不能为空")
         return host, _parse_port(port_str)
 
-    # Multiple colons -> raw IPv6 address without brackets
     ip_obj = ipaddress.ip_address(cleaned.split("%", 1)[0])
     return ip_obj.compressed, default_port
-
-
-# --- Shareable Invite Code / Endpoint Parser ---
 
 
 @dataclass(frozen=True)
@@ -280,19 +246,10 @@ def build_invite_code(
 
 
 def parse_peer_input(text: str, default_port: int = DEFAULT_P2P_PORT) -> ParsedPeerInput:
-    """
-    Parse flexible user input into a normalized peer endpoint:
-      - c6p2://[240e::1]:38666?name=Host&role=host&key=civ6
-      - [240e::1]:38666
-      - 240e::1
-      - 192.168.1.10:38666
-      - 192.168.1.10
-    """
     raw = text.strip()
     if not raw:
         raise ValueError("对方地址或连接码不能为空")
 
-    # Normalize accidental full-width brackets/colons if not a raw IPv6
     raw = raw.replace("［", "[").replace("］", "]")
 
     nickname = ""
@@ -315,7 +272,6 @@ def parse_peer_input(text: str, default_port: int = DEFAULT_P2P_PORT) -> ParsedP
         if "key" in qs and qs["key"]:
             room_key = unquote(qs["key"][0]).strip()
     else:
-        # Handle [ipv6]:port or [ipv6]
         if raw.startswith("["):
             end_idx = raw.find("]")
             if end_idx == -1:
@@ -329,7 +285,6 @@ def parse_peer_input(text: str, default_port: int = DEFAULT_P2P_PORT) -> ParsedP
             else:
                 raise ValueError(f"无法解析端口部分: {rest}")
         else:
-            # Could be raw IPv6 (multiple ':'), IPv4:port (single ':'), or raw IPv4
             cleaned = raw.replace("：", ":")
             if cleaned.count(":") == 0:
                 host_str = cleaned
@@ -338,11 +293,9 @@ def parse_peer_input(text: str, default_port: int = DEFAULT_P2P_PORT) -> ParsedP
                 host_str, port_str = cleaned.split(":", 1)
                 port = _parse_port(port_str)
             else:
-                # Raw IPv6 address without brackets
                 host_str = cleaned
                 port = default_port
 
-    # Strip zone index if someone pasted link-local like fe80::1%12
     if "%" in host_str:
         host_str = host_str.split("%", 1)[0]
 

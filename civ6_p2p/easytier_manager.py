@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-EasyTier (--no-tun) embedded session manager for CV6 online helper.
-
-Architecture (Zero VPS, Zero Admin, Zero Virtual NIC):
-  - Host:
-      1. Runs in-process RelayServer on 127.0.0.1:38668
-      2. Launches bundled easytier-core.exe in --no-tun mode with fixed virtual IP 10.144.144.1,
-         joining the EasyTier network (--network-name / --network-secret) via public or custom EasyTier nodes.
-      3. Host's P2PNode connects locally to 127.0.0.1:38668.
-  - Client:
-      1. Picks a free local UDP port `fwd_port`.
-      2. Launches bundled easytier-core.exe in --no-tun -d (DHCP) mode with:
-           --port-forward udp://127.0.0.1:<fwd_port>/10.144.144.1:38668
-      3. Client's P2PNode connects locally to 127.0.0.1:<fwd_port>, which EasyTier tunnels
-         (via P2P hole-punching or EasyTier public relay) straight to Host's RelayServer!
-"""
-
 from __future__ import annotations
 
 import atexit
@@ -38,18 +19,12 @@ from .relay_server import RelayServer
 
 EASYTIER_HOST_VIP = "10.144.144.1"
 EASYTIER_HOST_CIDR = f"{EASYTIER_HOST_VIP}/16"
-EASYTIER_HOST_RELAY_PORT = DEFAULT_RELAY_PORT  # 38668
+EASYTIER_HOST_RELAY_PORT = DEFAULT_RELAY_PORT
 
-# Custom VPS nodes only — public/community relay presets intentionally removed.
 DEFAULT_EASYTIER_NODE_PRESETS: list[tuple[str, str]] = []
 
 
 def _pick_random_client_cidr() -> str:
-    """
-    Pick a unique virtual IP in 10.144.X.Y/16 (excluding 10.144.144.x) per session.
-    Avoids EasyTier DHCP reusing 10.144.144.2 when a player disconnects and rejoins
-    mid-game, which otherwise collides with the Host's stale --no-tun UDP NAT mapping.
-    """
     while True:
         oct3 = 1 + secrets.randbelow(254)
         if oct3 == 144:
@@ -75,7 +50,6 @@ atexit.register(_cleanup_all_sessions)
 
 
 def find_easytier_core() -> Path:
-    """Locate bundled or system easytier-core executable."""
     exe_name = "easytier-core.exe" if os.name == "nt" else "easytier-core"
     candidates: list[Path] = []
 
@@ -103,12 +77,10 @@ def find_easytier_core() -> Path:
 
 
 def parse_easytier_peers(raw: str) -> list[str]:
-    """Parse one or more EasyTier peer URIs separated by comma/semicolon/whitespace."""
     text = raw.strip()
     if not text:
         raise ValueError("EasyTier 节点地址不能为空")
 
-    # Strip friendly label suffix like "  [EasyTier 官方...]" if selected from combobox
     if "  [" in text:
         text = text.split("  [", 1)[0].strip()
 
@@ -134,7 +106,6 @@ def _pick_free_udp_port() -> int:
 
 
 class EasyTierSession:
-    """Manages an embedded easytier-core (--no-tun) subprocess + Host in-process RelayServer."""
 
     def __init__(
         self,
@@ -184,10 +155,6 @@ class EasyTierSession:
                 pass
 
     def start(self) -> str:
-        """
-        Start EasyTier session (and Host in-process RelayServer if role == 'host').
-        Returns the local '127.0.0.1:<port>' address for P2PNode.connect_relay().
-        """
         with self._lock:
             if self._running:
                 return self._local_relay_addr
@@ -215,14 +182,12 @@ class EasyTierSession:
                 for lst in self.extra_listeners:
                     cmd.extend(["-l", lst])
             else:
-                # Ephemeral random listeners allow EasyTier P2P hole-punching without port 11010 collisions
                 cmd.extend(["-l", "tcp://0.0.0.0:0", "-l", "udp://0.0.0.0:0"])
 
             for uri in self.peer_uris:
                 cmd.extend(["-p", uri])
 
             if self.role == "host":
-                # Start embedded RelayServer on fixed port 38668 inside Host process
                 srv = RelayServer(listen_port=self.host_relay_port, log_cb=self._log_cb)
                 actual_relay_port = srv.start()
                 self._relay_server = srv
@@ -268,7 +233,6 @@ class EasyTierSession:
         self._log_thread = threading.Thread(target=self._watch_stdout, name="easytier-log", daemon=True)
         self._log_thread.start()
 
-        # Quick startup sanity check (catch immediate exit like bad args / missing DLL)
         time.sleep(0.35)
         if proc.poll() is not None:
             rc = proc.returncode
@@ -340,7 +304,6 @@ class EasyTierSession:
                     self._log("ok", "[EasyTier] 已成功打洞升级为直连！")
                 elif "error" in low and "addrnotavailable" not in low:
                     short = line[:360]
-                    # Deduplicate identical error messages spamming every second
                     err_sig = short.split("connect to peer error", 1)[-1] if "connect to peer error" in short else short
                     now = time.monotonic()
                     if err_sig != last_err_sig or (now - last_err_ts) >= 5.0:

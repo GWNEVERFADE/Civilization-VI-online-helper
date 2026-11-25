@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Core IPv6/IPv4 dual-stack UDP P2P engine:
-  - Direct connect & simultaneous UDP hole-punching (works through IPv6 SPI firewalls & Cone NAT)
-  - Peer online / connecting / offline presence tracking
-  - Real-time RTT, jitter, packet loss, remote Civ6 status sync
-  - Active connectivity & 1200-byte MTU verification test
-  - Active-socket RFC 5389 STUN external IPv6/IPv4 probing
-  - Low-overhead Civ6 discovery & session frame transport
-"""
-
 from __future__ import annotations
 
 import secrets
@@ -82,12 +70,12 @@ class PeerState:
     port: int
     ip_version: int
     fake_ip: str
-    transport: str = "direct"  # "direct" | "relay"
+    transport: str = "direct"
     transport_name: str = ""
     nickname: str = ""
-    role: str = "unknown"  # "host" | "client" | "unknown"
+    role: str = "unknown"
     node_id: str = ""
-    status: str = "connecting"  # "connecting" | "online" | "offline"
+    status: str = "connecting"
     verified: bool = False
     last_test_summary: str = "未测试"
 
@@ -111,7 +99,6 @@ class PeerState:
     tx_bytes: int = 0
     rx_bytes: int = 0
 
-    # Internal ping tracking (not copied deeply into snapshots)
     _ping_seq: int = 0
     _recent_pings: deque = field(default_factory=lambda: deque(maxlen=20), repr=False)
     _acked_seqs: set = field(default_factory=set, repr=False)
@@ -177,12 +164,6 @@ class Step2GateState:
 
 
 def evaluate_step2_gate(node_running: bool, peers: list[PeerState]) -> Step2GateState:
-    """
-    Strict gate for entering Step 2 and starting Civ6 multiplayer helper:
-      1. Local node must be running
-      2. At least 2 people must be online (local user + at least 1 online peer)
-      3. At least 1 online peer must have passed the Step 1 connectivity test
-    """
     online_peers = [p for p in peers if p.status == "online"]
     verified_online = [p for p in online_peers if p.verified]
     total_online = (1 if node_running else 0) + len(online_peers)
@@ -241,7 +222,6 @@ class ConnectivityTestResult:
 
 
 class P2PNode:
-    """Dual-stack IPv6/IPv4 UDP P2P node with presence, hole-punching, and Civ6 tunnel framing."""
 
     def __init__(
         self,
@@ -274,23 +254,19 @@ class P2PNode:
         self._peers: dict[str, PeerState] = {}
         self._used_fake_ips: set[str] = set()
 
-        # Callbacks for Civ6 tunnel integration
         self._on_civ6_disc_req: Callable[[str, int, int, bytes], None] | None = None
         self._on_civ6_disc_resp: Callable[[str, int, int, bytes], None] | None = None
         self._on_civ6_session: Callable[[str, bytes], None] | None = None
         self._on_peer_offline: Callable[[str], None] | None = None
 
-        # Active connectivity test waiters: test_id -> {seq: (rtt_ms, orig_len)}
         self._test_lock = threading.Lock()
         self._test_results: dict[int, dict[int, tuple[float, int]]] = {}
         self._test_events: dict[int, threading.Event] = {}
 
-        # Active STUN waiters: tx_id -> (mapped_ip, mapped_port)
         self._stun_lock = threading.Lock()
         self._stun_results: dict[bytes, tuple[str, int]] = {}
         self._stun_events: dict[bytes, threading.Event] = {}
 
-        # Relay client state
         self._relay_enabled: bool = False
         self._relay_connected: bool = False
         self._relay_ip: str = ""
@@ -385,7 +361,6 @@ class P2PNode:
             relay_ip = self._relay_ip
             relay_port = self._relay_port
 
-        # Notify online peers gracefully before tearing down the socket
         bye_pkt = pack_json_packet(MsgType.BYE, self.room_tag, {"node_id": self.node_id})
         for p in peers_copy:
             if p.status == "online":
@@ -430,7 +405,6 @@ class P2PNode:
             if cand not in self._used_fake_ips:
                 self._used_fake_ips.add(cand)
                 return cand
-        # Pool full: reclaim the oldest offline relay peer if available
         offline_relay = sorted(
             [p for p in self._peers.values() if p.transport == "relay" and p.status == "offline"],
             key=lambda p: p.last_seen,
@@ -501,7 +475,6 @@ class P2PNode:
         default_port: int = DEFAULT_RELAY_PORT,
         transport_name: str = "EasyTier 中继",
     ) -> tuple[str, int]:
-        """Connect to a UDP Relay Server and join `room_id` (requires node to be running)."""
         if not self._running:
             raise RuntimeError("请先启动本机节点")
         room_clean = room_id.strip()[:64]
@@ -509,7 +482,6 @@ class P2PNode:
             raise ValueError("中继房间号不能为空")
 
         host_input, port = parse_server_address(server_addr, default_port=default_port)
-        # Resolve domain/IP (prefer IPv4 if dual-stack socket can reach both, or IPv6 if only AAAA exists)
         resolved_ip = ""
         resolved_ver = 4
         families = (socket.AF_UNSPEC,) if self._is_ipv6_sock else (socket.AF_INET,)
@@ -518,7 +490,6 @@ class P2PNode:
             try:
                 infos = socket.getaddrinfo(host_input, port, af, socket.SOCK_DGRAM)
                 if infos:
-                    # Prefer IPv6 if available and socket supports it, else IPv4
                     chosen = infos[0]
                     for info in infos:
                         if info[0] == socket.AF_INET6 and self._is_ipv6_sock:
@@ -532,7 +503,6 @@ class P2PNode:
         if not resolved_ip:
             raise OSError(f"无法解析中继服务器地址 {host_input}:{port}: {last_err}")
 
-        # If previously connected to a different relay room, gracefully unregister first
         if self._relay_enabled:
             self.disconnect_relay()
 
@@ -746,10 +716,6 @@ class P2PNode:
     def run_connectivity_test(
         self, peer_key: str, count: int = 5, timeout_s: float = 1.5
     ) -> ConnectivityTestResult:
-        """
-        Actively verify reachability, latency, jitter, and large-packet (1150B) MTU
-        before launching Civ6 multiplayer helper (works for both Direct P2P and Server Relay).
-        """
         with self._lock:
             peer = self._peers.get(peer_key)
             if peer is None:
@@ -764,7 +730,6 @@ class P2PNode:
             self._test_results[test_id] = {}
             self._test_events[test_id] = ev
 
-        # First 3 packets: 64B latency probes; last 2 packets: 1150B MTU probes (> Civ6 1104B, fits 1280B IPv6 MTU + relay header)
         sizes = [64, 64, 64, 1150, 1150] if count == 5 else ([64] * max(1, count - 2) + [1150, 1150])[:count]
         sent = len(sizes)
         try:
@@ -844,11 +809,6 @@ class P2PNode:
         servers: list[tuple[str, int]] = DEFAULT_STUN_SERVERS,
         timeout_s: float = 2.0,
     ) -> dict[str, tuple[str, int]]:
-        """
-        Send RFC 5389 STUN Binding Requests via the ACTIVE P2P UDP socket so we learn
-        the exact external IPv6 and/or IPv4 mapped address+port of this P2P node.
-        Returns dict with optional keys 'ipv6' and 'ipv4' -> (ip, port).
-        """
         if not self._running or self._sock is None:
             raise RuntimeError("请先启动 P2P 节点后再进行 STUN 公网检测")
 
@@ -894,9 +854,6 @@ class P2PNode:
 
         return results
 
-    # ----------------------------
-    # Internal loops & handlers
-    # ----------------------------
 
     def _recv_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -913,14 +870,12 @@ class P2PNode:
             try:
                 raw, addr = sock.recvfrom(65535)
             except ConnectionResetError:
-                # Windows ICMP Port Unreachable residue; ignore and keep listening
                 continue
             except OSError:
                 if self._stop_event.is_set():
                     break
                 continue
 
-            # Check if this is a STUN Binding Response first
             if is_stun_packet(raw):
                 stun_parsed = parse_stun_binding_response(raw)
                 if stun_parsed is not None:
@@ -936,7 +891,6 @@ class P2PNode:
                 continue
             msg_type, room_tag, payload = parsed
             if room_tag != self.room_tag:
-                # Drop packets with mismatched room key silently
                 continue
 
             try:
@@ -945,7 +899,6 @@ class P2PNode:
             except Exception:
                 continue
 
-            # Handle Relay control / forwarded packets
             if msg_type == MsgType.RELAY_PEERS:
                 self._handle_relay_peers(payload, src_ip, src_port)
                 continue
@@ -977,7 +930,6 @@ class P2PNode:
         offline_notify_keys: list[str] = []
         just_connected = False
 
-        # Collect active node IDs first so we know which offline peers are genuinely gone
         for item in peers_list:
             if isinstance(item, dict):
                 nid = str(item.get("node_id", "")).strip()
@@ -1002,7 +954,6 @@ class P2PNode:
                 role = str(item.get("role") or "unknown")
                 p = self._peers.get(pkey)
                 if p is None:
-                    # Prune any stale offline relay entry for the same rejoining player
                     for old_key, old_p in list(self._peers.items()):
                         if (
                             old_p.transport == "relay"
@@ -1046,7 +997,6 @@ class P2PNode:
                     p.remote_civ6_room_ready = bool(civ6.get("room_ready", False))
                     p.remote_civ6_session_ready = bool(civ6.get("session_ready", False))
 
-            # Any relay peer no longer listed by server goes offline immediately
             left_peers: list[str] = []
             for pkey, p in self._peers.items():
                 if p.transport == "relay" and p.node_id not in active_relay_ids and p.status != "offline":
@@ -1118,7 +1068,6 @@ class P2PNode:
         with self._lock:
             peer = self._peers.get(peer_key)
             if peer is None and transport == "direct":
-                # Check if same direct node_id reconnected from a new port/IP
                 node_id = (data or {}).get("node_id", "") if data else ""
                 if node_id:
                     for old_key, old_peer in list(self._peers.items()):
@@ -1189,7 +1138,6 @@ class P2PNode:
         transport: str = "direct",
         remote_node_id: str = "",
     ) -> None:
-        # Hot path: Civ6 session packet (minimal overhead!)
         if msg_type == MsgType.CIV6_SESSION:
             with self._lock:
                 peer = self._peers.get(peer_key)
@@ -1271,7 +1219,6 @@ class P2PNode:
                         ev.set()
             return
 
-        # Control JSON packets
         data = unpack_json_payload(payload)
         if data is None:
             return
@@ -1294,7 +1241,6 @@ class P2PNode:
             with self._lock:
                 peer.rx_packets += 1
                 peer.rx_bytes += raw_len
-            # Trigger immediate ping to measure RTT right away
             self._send_ping(peer_key)
             return
 
@@ -1339,11 +1285,9 @@ class P2PNode:
                     peer.rtt_ms = peer.rtt_ms * 0.6 + rtt * 0.4
                 peer.min_rtt_ms = rtt if peer.min_rtt_ms is None else min(peer.min_rtt_ms, rtt)
                 peer._acked_seqs.add(seq)
-                # Trim acked set to recent window
                 recent_set = set(peer._recent_pings)
                 peer._acked_seqs &= recent_set
                 if len(peer._recent_pings) >= 2:
-                    # Exclude the very newest in-flight ping when computing loss
                     completed = list(peer._recent_pings)[:-1]
                     acked = sum(1 for s in completed if s in peer._acked_seqs)
                     peer.loss_pct = ((len(completed) - acked) / len(completed)) * 100.0
@@ -1398,7 +1342,6 @@ class P2PNode:
                     else:
                         if p.transport == "relay" and (not self._relay_connected or p.status == "offline"):
                             continue
-                        # Connecting (or offline direct peer): keep sending HELLO packets
                         elapsed = now - p.added_at
                         interval = PUNCH_FAST_INTERVAL_S if elapsed < PUNCH_FAST_DURATION_S else PUNCH_SLOW_INTERVAL_S
                         if (now - p.last_punch_sent) >= interval:

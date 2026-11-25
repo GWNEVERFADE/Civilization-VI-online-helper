@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Civ6 P2P 独立中继服务器（可部署在任意 Linux / Windows VPS，零第三方依赖）
-
-用法示例:
-    python3 civ6_relay_server.py --port 38668
-
-安全组/防火墙:
-    只需在云服务器放行 UDP 38668（或自定义端口）即可，同时支持 IPv4 与 IPv6 客户端混合接入。
-"""
-
 from __future__ import annotations
 
 import argparse

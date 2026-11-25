@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Civilization VI multiplayer helper engines:
-  1. HostCiv6Bridge   - Host-side P2P/Relay <-> local Civ6 (62900 discovery + per-peer 127.0.127.x:62056 session)
-  2. ClientCiv6Bridge - Client-side P2P/Relay <-> local Civ6 (127.0.127.1:62900 fake host + ephemeral watcher + 127.0.127.1:62056 session)
-"""
-
 from __future__ import annotations
 
 import os
@@ -28,7 +20,6 @@ from .win_civ6 import (
     read_civ6_candidates,
 )
 
-# Polling policy matching upstream civ6-l3-discovery-helper
 IDLE_MS = 500
 BURST_MS = 3000
 BURST_INTERVAL_MS = 20
@@ -46,7 +37,7 @@ def _hex_bytes(data: bytes) -> str:
 @dataclass
 class BridgeStats:
     active: bool = False
-    mode: str = ""  # "host" | "client"
+    mode: str = ""
     fake_host_ip: str = "127.0.127.1"
     disc_reqs: int = 0
     disc_resps: int = 0
@@ -58,12 +49,6 @@ class BridgeStats:
 
 
 class HostCiv6Bridge:
-    """
-    Host-side bridge between P2PNode and local Civ6 process.
-      - Discovery: receives CIV6_DISC_REQ from peers -> queries local Civ6 :62900 -> forwards all replies back.
-      - Session: allocates one local loopback socket (peer.fake_ip, 62056) per remote peer and relays bidirectionally
-        with local Civ6 (127.0.0.1, 62056).
-    """
 
     def __init__(
         self,
@@ -84,7 +69,6 @@ class HostCiv6Bridge:
         self._lock = threading.RLock()
         self._running = False
         self._stop_event = threading.Event()
-        # peer_key -> (socket, fake_ip)
         self._peer_sess_socks: dict[str, tuple[socket.socket, str]] = {}
         self._sock_to_peer: dict[socket.socket, str] = {}
         self._sess_thread: threading.Thread | None = None
@@ -188,7 +172,6 @@ class HostCiv6Bridge:
 
             s.sendto(raw_payload or DISCOVERY_PAYLOAD, (target_ip, target_port))
 
-            # Collect all discovery reply packets (Civ6 may send 1~4 UDP packets ~1104B each)
             deadline = time.monotonic() + 0.65
             while time.monotonic() < deadline and not self._stop_event.is_set():
                 wait_s = 0.15 if replied_count > 0 else min(0.45, max(0.05, deadline - time.monotonic()))
@@ -229,7 +212,6 @@ class HostCiv6Bridge:
                     pass
 
     def release_peer(self, peer_key: str) -> None:
-        """Close and release a disconnected peer's local 127.0.127.x:62056 socket so mid-game rejoins work cleanly."""
         sock_to_close: socket.socket | None = None
         released_ip = ""
         with self._lock:
@@ -255,7 +237,6 @@ class HostCiv6Bridge:
                 return None
             fake_ip = peer.fake_ip
 
-            # Evict any stale socket still holding this fake_ip (prevents Windows SO_REUSEADDR packet hijacking!)
             for old_key, (old_sock, old_ip) in list(self._peer_sess_socks.items()):
                 if old_ip == fake_ip and old_key != peer_key:
                     self._peer_sess_socks.pop(old_key, None)
@@ -340,13 +321,6 @@ class HostCiv6Bridge:
 
 
 class ClientCiv6Bridge:
-    """
-    Client-side bridge between local Civ6 process and remote Host via P2PNode.
-      - Binds local fake host sockets: (fake_host_ip, 62900) and (fake_host_ip, 62056)
-      - Watches local Civ6 ephemeral UDP discovery ports (Windows API) + optional 0.0.0.0:62900 broadcast sniffer
-      - Relays discovery over IPv6 P2P and injects Host's room info back from fake_host_ip:62900
-      - Relays 62056 game session bidirectionally over IPv6 P2P
-    """
 
     def __init__(
         self,
@@ -384,7 +358,6 @@ class ClientCiv6Bridge:
         self._req_id_seq = 0
         self._recent_ephem_sent: dict[int, float] = {}
 
-        # Active room probe waiter
         self._probe_lock = threading.Lock()
         self._probe_req_id: int | None = None
         self._probe_pkts: list[bytes] = []
@@ -414,13 +387,11 @@ class ClientCiv6Bridge:
                 return
             self._stop_event.clear()
 
-            # 1. Fake Host discovery socket (127.0.127.1:62900)
             disc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             disc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             disable_udp_connreset(disc_sock)
             disc_sock.bind((self.fake_host_ip, self.local_disc_port))
 
-            # 2. Fake Host session socket (127.0.127.1:62056)
             sess_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             try:
                 sess_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -432,7 +403,6 @@ class ClientCiv6Bridge:
                 sess_sock.close()
                 raise
 
-            # 3. Optional broadcast sniffer on 0.0.0.0:62900 for <1ms discovery detection
             bcast_sock = None
             if self.enable_broadcast_sniffer:
                 try:
@@ -511,7 +481,6 @@ class ClientCiv6Bridge:
             if (now - last) < 0.4:
                 return False
             self._recent_ephem_sent[ephem_port] = now
-            # Prune old entries
             if len(self._recent_ephem_sent) > 64:
                 self._recent_ephem_sent = {k: v for k, v in self._recent_ephem_sent.items() if (now - v) < 5.0}
             self._req_id_seq = (self._req_id_seq + 1) & 0xFFFF
@@ -527,10 +496,6 @@ class ClientCiv6Bridge:
         return ok
 
     def probe_host_room(self, timeout_s: float = 1.5) -> tuple[bool, int, int]:
-        """
-        Actively query the remote Host's Civ6 room (via P2P -> Host 62900) without needing
-        to switch into the game first. Returns (ok, packet_count, total_bytes).
-        """
         if not self._running:
             raise RuntimeError("请先启动加入者文明6联机辅助")
 
@@ -551,7 +516,6 @@ class ClientCiv6Bridge:
         while time.monotonic() < deadline:
             remaining = max(0.05, deadline - time.monotonic())
             if self._probe_event.wait(timeout=min(0.25, remaining)):
-                # Give brief window for multi-packet Civ6 room info burst
                 time.sleep(0.18)
                 break
 
@@ -650,15 +614,10 @@ class ClientCiv6Bridge:
                                 f"62056 游戏会话活跃中 (发 {self._stats.session_tx_pkts} / 收 {self._stats.session_rx_pkts})"
                             )
                 elif s is disc_sock or s is bcast_sock:
-                    # Direct broadcast or unicast discovery packet from local Civ6
                     if data == DISCOVERY_PAYLOAD or len(data) == 4:
                         self.trigger_discovery_for_port(int(addr[1]), data, source="broadcast")
 
     def _windows_ephem_watch_loop(self) -> None:
-        """
-        Adaptive polling watcher adapted directly from Frwere/civ6-l3-discovery-helper.
-        Detects Civ6's short-lived UDP discovery port even when broadcast sniffing doesn't fire.
-        """
         civ6_processes: dict[int, str] = {}
         last_pid_refresh = 0
         known: dict[tuple[int, int], int] = {}

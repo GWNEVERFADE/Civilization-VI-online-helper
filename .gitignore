@@ -6,5 +6,6 @@ __pycache__/
 dist/
 build/
 *.spec
+!CV6 online helper.spec
 .env
 .venv/

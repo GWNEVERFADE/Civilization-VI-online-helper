@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Network helpers for dual-stack IPv6/IPv4 UDP sockets, local IPv6/IPv4 discovery,
-Windows SIO_UDP_CONNRESET suppression, and pure-Python RFC 5389 STUN probing.
-"""
-
 from __future__ import annotations
 
 import ctypes
@@ -58,7 +51,6 @@ class LocalNetworkInfo:
         return "::1"
 
     def all_candidates(self) -> list[tuple[str, str]]:
-        """Return list of (ip, label) ordered from best P2P candidate to fallback."""
         items: list[tuple[str, str]] = []
         seen: set[str] = set()
 
@@ -84,7 +76,6 @@ class LocalNetworkInfo:
 
 
 def disable_udp_connreset(sock: socket.socket) -> bool:
-    """Suppress Windows WSAECONNRESET (10054) on UDP sockets after ICMP Port Unreachable."""
     if os.name != "nt":
         return True
     try:
@@ -116,10 +107,6 @@ def tune_udp_buffers(sock: socket.socket, size: int = 1024 * 1024) -> None:
 
 
 def create_dualstack_udp_socket(port: int) -> tuple[socket.socket, bool, int]:
-    """
-    Create a dual-stack IPv6+IPv4 UDP socket bound to ("::", port).
-    Returns (sock, is_ipv6_socket, actual_port).
-    """
     try:
         sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         try:
@@ -132,7 +119,6 @@ def create_dualstack_udp_socket(port: int) -> tuple[socket.socket, bool, int]:
         actual_port = sock.getsockname()[1]
         return sock, True, actual_port
     except OSError:
-        # Fallback to IPv4-only if OS has IPv6 disabled
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         disable_udp_connreset(sock)
         tune_udp_buffers(sock)
@@ -142,10 +128,6 @@ def create_dualstack_udp_socket(port: int) -> tuple[socket.socket, bool, int]:
 
 
 def canonicalize_ip(host: str) -> tuple[str, int]:
-    """
-    Canonicalize an IP string (strips ::ffff: IPv4-mapped prefix and IPv6 zone id).
-    Returns (compressed_ip, version).
-    """
     clean = host.strip()
     if "%" in clean:
         clean = clean.split("%", 1)[0]
@@ -182,7 +164,6 @@ def detect_local_network_info() -> LocalNetworkInfo:
     ll_v6: set[str] = set()
     v4_set: set[str] = set()
 
-    # Probe default outbound IPv6 via UDP connect (does not transmit packets)
     for probe_target in ("2400:3200::1", "2001:4860:4860::8888"):
         s = None
         try:
@@ -204,7 +185,6 @@ def detect_local_network_info() -> LocalNetworkInfo:
                 except Exception:
                     pass
 
-    # Probe default outbound IPv4
     for probe_target in ("223.5.5.5", "8.8.8.8"):
         s = None
         try:
@@ -224,7 +204,6 @@ def detect_local_network_info() -> LocalNetworkInfo:
                 except Exception:
                     pass
 
-    # Enumerate host addresses
     try:
         hostname = socket.gethostname()
         for item in socket.getaddrinfo(hostname, None):
@@ -257,21 +236,13 @@ def detect_local_network_info() -> LocalNetworkInfo:
     return info
 
 
-# --- Pure-Python RFC 5389 STUN ---
-
-
 def build_stun_binding_request() -> tuple[bytes, bytes]:
-    """Return (packet_bytes, 12-byte transaction_id)."""
     tx_id = secrets.token_bytes(12)
     pkt = struct.pack("!HHI12s", STUN_BINDING_REQUEST, 0, STUN_MAGIC_COOKIE, tx_id)
     return pkt, tx_id
 
 
 def parse_stun_binding_response(raw: bytes) -> tuple[bytes, str, int] | None:
-    """
-    Parse an RFC 5389 STUN Binding Response.
-    Returns (tx_id, mapped_ip, mapped_port) or None if not a valid STUN response.
-    """
     if len(raw) < 20:
         return None
     msg_type, msg_len, cookie, tx_id = struct.unpack_from("!HHI12s", raw, 0)
@@ -290,7 +261,6 @@ def parse_stun_binding_response(raw: bytes) -> tuple[bytes, str, int] | None:
         if offset + attr_len > end:
             break
         val = raw[offset : offset + attr_len]
-        # Attributes are padded to 4-byte boundary
         offset += (attr_len + 3) & ~3
 
         if attr_type == STUN_ATTR_XOR_MAPPED_ADDRESS and len(val) >= 8:
@@ -323,5 +293,4 @@ def parse_stun_binding_response(raw: bytes) -> tuple[bytes, str, int] | None:
 def is_stun_packet(raw: bytes) -> bool:
     if len(raw) < 20:
         return False
-    # STUN packets have top 2 bits == 0 and magic cookie at bytes 4..8
     return (raw[0] & 0xC0) == 0 and struct.unpack_from("!I", raw, 4)[0] == STUN_MAGIC_COOKIE
